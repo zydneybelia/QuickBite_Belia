@@ -1,61 +1,49 @@
 # 🍔 QuickBite
 
-QuickBite is a food ordering and delivery system that aims to provide users with a simple and convenient platform for browsing restaurants, viewing menu items, managing carts, and placing food orders online.
+QuickBite is a food ordering and delivery system designed to provide users with a simple and convenient platform for browsing restaurants, viewing menu items, managing carts, and placing food orders online.
+
+The system follows a modern full-stack architecture:
+
+- **Frontend:** ReactJS  
+- **Backend:** Spring Boot  
+- **Database:** Supabase PostgreSQL  
+- **Security:** Spring Security + JWT  
+- **ORM:** Spring Data JPA  
+- **Build Tool:** Maven  
+- **API Testing:** Postman  
 
 ---
 
-# 📌 Features
+## ⚙️ Features
 
-## 🔐 User Authentication
-- User Registration
-- User Login
-- BCrypt Password Encryption
-- JWT Authentication
-- Protected Routes
+### 🛒 Cart & Orders
+- Add items to cart  
+- Update item quantities  
+- Remove items from cart  
+- Place food orders  
 
-## 🍽️ Restaurant & Menu
-- View available restaurants
-- Browse menu items
-- View food details and prices
-
-## 🛒 Cart & Orders
-- Add items to cart
-- Update quantities
-- Remove items
-- Place food orders
-
-## 👤 User Profile
-- View authenticated user profile
-- Logout functionality
+### 👤 User Profile
+- View authenticated user profile  
+- Logout functionality  
 
 ---
 
-# 🛠️ Technology Stack
+## 🛠️ Backend Setup (Spring Boot)
 
-| Layer | Technology |
-|------|-------------|
-| Frontend | ReactJS |
-| Backend | Spring Boot |
-| Database | Supabase PostgreSQL |
-| Security | Spring Security + JWT |
-| ORM | Spring Data JPA |
-| Build Tool | Maven |
-| API Testing | Postman |
+### Prerequisites
+- Java 17  
+- Maven  
+- VS Code / IntelliJ IDEA  
+- Supabase account  
 
 ---
 
-# ⚙️ Backend Setup
+### Configure Database
 
-## Prerequisites
-- Java 17
-- Maven
-- VS Code / IntelliJ
-- Supabase Account
-
-## Database Configuration
+Update `application.properties`:
 
 ```properties
-spring.datasource.url=jdbc:postgresql://YOUR_HOST:5432/postgres
-spring.datasource.username=YOUR_USERNAME
-spring.datasource.password=YOUR_PASSWORD
+spring.datasource.url=jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+spring.datasource.username=postgres.htapczsxcdljzpelmmgk
+spring.datasource.password=YOUR_PASSWORD_HERE
 spring.datasource.driver-class-name=org.postgresql.Driver
