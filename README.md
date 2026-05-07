@@ -28,8 +28,7 @@ The /docs folder contains:
 Software Design Document (SDD) UML Diagrams ERD API Documentation
 
 👨‍💻 Developer
-
 Zydney Belia
-📌 Status
 
+📌 Status
 🚧 Project currently under development.
