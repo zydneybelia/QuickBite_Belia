@@ -69,8 +69,7 @@ API Documentation
 
 👨‍💻 Developer
 - Zydney Belia
-System Integration and Architecture Project
-QuickBite Food Ordering System
+
 
 📌 Status
 
