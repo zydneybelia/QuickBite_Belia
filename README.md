@@ -65,9 +65,10 @@ Software Design Document (SDD)
 UML Diagrams
 ERD
 API Documentation
-👨‍💻 Developer
 
-Zydney Belia
+
+👨‍💻 Developer
+- Zydney Belia
 System Integration and Architecture Project
 QuickBite Food Ordering System
 
