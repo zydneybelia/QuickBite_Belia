@@ -27,3 +27,35 @@ QuickBite is a food ordering and delivery system that aims to provide users with
 ## 👤 User Profile
 - View authenticated user profile
 - Logout functionality
+
+---
+
+# 🛠️ Technology Stack
+
+| Layer | Technology |
+|------|-------------|
+| Frontend | ReactJS |
+| Backend | Spring Boot |
+| Database | Supabase PostgreSQL |
+| Security | Spring Security + JWT |
+| ORM | Spring Data JPA |
+| Build Tool | Maven |
+| API Testing | Postman |
+
+---
+
+# ⚙️ Backend Setup
+
+## Prerequisites
+- Java 17
+- Maven
+- VS Code / IntelliJ
+- Supabase Account
+
+## Database Configuration
+
+```properties
+spring.datasource.url=jdbc:postgresql://YOUR_HOST:5432/postgres
+spring.datasource.username=YOUR_USERNAME
+spring.datasource.password=YOUR_PASSWORD
+spring.datasource.driver-class-name=org.postgresql.Driver
