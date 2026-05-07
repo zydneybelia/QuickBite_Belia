@@ -1,89 +1,124 @@
-QuickBite 🍔🚀
+# QuickBite 🍔🚀
 
 QuickBite is a food ordering and delivery system developed for the System Integration and Architecture course. The project aims to provide users with a simple and convenient platform for browsing restaurants, viewing menu items, managing carts, and placing food orders online.
 
-The system follows a modern full-stack architecture using:
+---
 
-Frontend: ReactJS 
-Backend: Spring Boot
-Database: Supabase PostgreSQL 
-Authentication: JWT + Spring Security
+# 📌 Features
 
-📌 Features 
-User Authentication 
-User Registration
-User Login Secure Password Encryption using BCrypt
-JWT Authentication 
-Protected Routes 
+## User Authentication
+- User Registration
+- User Login
+- BCrypt Password Encryption
+- JWT Authentication
+- Protected Routes
 
-Restaurant & Menu
-View available restaurants 
-Browse restaurant menu items 
-View food details and prices
+## Restaurant & Menu
+- View available restaurants
+- Browse menu items
+- View food details and prices
 
-Cart & Orders 
-Add items to cart 
-Update item quantities 
-Remove items from cart 
-Place food orders 
+## Cart & Orders
+- Add items to cart
+- Update quantities
+- Remove items from cart
+- Place food orders
 
-User Profile 
-View authenticated user profile 
-Logout functionality
+## User Profile
+- View authenticated user profile
+- Logout functionality
 
-🛠️ Technology Stack 
-LAYER               TECHNOLOGY
-Frontend            ReactJS 
-Backend             Spring Boot 
-Database            Supabase PostgreSQL
- Security           Spring Security + JWT
- ORM                Spring Data JPA 
- Build Tool         Maven
- API Testing        Postman
+---
 
-⚙️ Backend Setup (Spring Boot) 
-Prerequisites 
-Java 17 
-Maven 
-VS Code / IntelliJ 
-Supabase Account 
+# 🛠️ Technology Stack
 
-Configure Database
-Update application.properties:
+| Layer | Technology |
+|------|-------------|
+| Frontend | ReactJS |
+| Backend | Spring Boot 3 |
+| Database | Supabase PostgreSQL |
+| Security | Spring Security + JWT |
+| ORM | Spring Data JPA |
+| Build Tool | Maven |
+| API Testing | Postman |
 
-spring.datasource.url=jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require spring.datasource.username=postgres.htapczsxcdljzpelmmgk spring.datasource.password=Zyd09286061150 spring.datasource.driver-class-name=org.postgresql.Driver
+---
 
-RUN BACKEND
+# ⚙️ Backend Setup
+
+## Prerequisites
+- Java 17
+- Maven
+- VS Code / IntelliJ
+- Supabase Account
+
+## Database Configuration
+
+Update `application.properties`:
+
+```properties
+spring.datasource.url=jdbc:postgresql://YOUR_HOST:5432/postgres
+spring.datasource.username=postgres
+spring.datasource.password=YOUR_PASSWORD
+spring.datasource.driver-class-name=org.postgresql.Driver
+```
+
+---
+
+# 🚀 Run Backend
+
+```bash
 cd backend
 mvn spring-boot:run
+```
 
-Backend will run on:
+Backend runs on:
+
+```text
 http://localhost:8080
+```
 
-🌐 Frontend Setup (ReactJS)
-Install Dependencies
+---
+
+# 🌐 Frontend Setup
+
+## Install Dependencies
+
+```bash
 cd web
 npm install
+```
 
-Run Frontend
+## Run Frontend
+
+```bash
 npm start
+```
 
-Frontend will run on:
+Frontend runs on:
 
+```text
 http://localhost:3000
+```
 
-📑 Documentation
+---
 
-The /docs folder contains:
+# 📑 Documentation
 
-Software Design 
-Document (SDD) 
-UML Diagrams 
-ERD 
-API Documentation
+The `/docs` folder contains:
+- Software Design Document (SDD)
+- UML Diagrams
+- ERD
+- API Documentation
 
-👨‍💻 Developer
+---
+
+# 👨‍💻 Developer
+
 Zydney Belia
 
-📌 Status
+---
+
+# 📌 Status
+
 🚧 Project currently under development.
