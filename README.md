@@ -56,3 +56,21 @@ spring.datasource.url=jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com
 spring.datasource.username=postgres.htapczsxcdljzpelmmgk
 spring.datasource.password=Zyd09286061150
 spring.datasource.driver-class-name=org.postgresql.Driver
+
+📑 Documentation
+
+The /docs folder contains:
+
+Software Design Document (SDD)
+UML Diagrams
+ERD
+API Documentation
+👨‍💻 Developer
+
+Zydney Belia
+System Integration and Architecture Project
+QuickBite Food Ordering System
+
+📌 Status
+
+🚧 Project currently under development.
