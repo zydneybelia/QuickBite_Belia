@@ -1,34 +1,44 @@
 # 🍔 QuickBite
 
-QuickBite is a food ordering and delivery system designed to provide users with a simple and convenient platform for browsing restaurants, viewing menu items, managing carts, and placing food orders online.
+QuickBite is a food ordering and delivery system developed for the System Integration and Architecture course.
 
-The system follows a modern full-stack architecture:
+It provides a simple platform for:
+- Browsing restaurants
+- Viewing menus
+- Managing cart
+- Placing food orders
 
-- **Frontend:** ReactJS  
-- **Backend:** Spring Boot  
-- **Database:** Supabase PostgreSQL  
-- **Security:** Spring Security + JWT  
-- **ORM:** Spring Data JPA  
-- **Build Tool:** Maven  
-- **API Testing:** Postman  
 
 ---
 
 ## ⚙️ Features
 
-### 🛒 Cart & Orders
-- Add items to cart  
-- Update item quantities  
-- Remove items from cart  
-- Place food orders  
+## 🔐 User Authentication
+- User Registration
+- User Login
+- BCrypt Password Encryption
+- JWT Authentication
+- Protected Routes
 
-### 👤 User Profile
-- View authenticated user profile  
-- Logout functionality  
+## 🍽️ Restaurant & Menu
+- View restaurants
+- Browse menu items
+- View food details & prices
+
+## 🛒 Cart & Orders
+- Add items to cart
+- Update quantities
+- Remove items
+- Place orders
+
+## 👤 User Profile
+- View profile
+- Logout
 
 ---
 
-## 🛠️ Backend Setup (Spring Boot)
+# 🛠️ Tech Stack
+
 
 ### Prerequisites
 - Java 17  
@@ -37,13 +47,17 @@ The system follows a modern full-stack architecture:
 - Supabase account  
 
 ---
+# ⚙️ Backend Setup
 
-### Configure Database
+## Prerequisites
+- Java 17
+- Maven
+- Supabase Account
 
-Update `application.properties`:
-
+## Database Config (`application.properties`)
 ```properties
-spring.datasource.url=jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require
-spring.datasource.username=postgres.htapczsxcdljzpelmmgk
-spring.datasource.password=YOUR_PASSWORD_HERE
+spring.datasource.url=jdbc:postgresql://YOUR_HOST:5432/postgres
+spring.datasource.username=YOUR_USERNAME
+spring.datasource.password=YOUR_PASSWORD
+>>>>>>> fc03c35 (modified README)
 spring.datasource.driver-class-name=org.postgresql.Driver
