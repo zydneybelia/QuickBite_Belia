@@ -1,8 +1,6 @@
 # 🍔 QuickBite
 QuickBite is a food ordering and delivery system aims to provide users with a simple and convenient platform for browsing restaurants, viewing menu items, managing carts, and placing food orders online.
 
-QuickBite is a food ordering and delivery system developed for the **System Integration and Architecture** course.
-
 It provides a simple platform for:
 - Browsing restaurants
 - Viewing menus
