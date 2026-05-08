@@ -10,6 +10,11 @@
 -  Protected dashboard page 
 -  BCrypt password encryption 
 
+- Admin Dashboard
+- Customer Dashboard
+- Manager Dashboard
+
+
 ## IN-PROGRESS
 -  Mobile app setup
 
