@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Login from "./features/auth/components/Login";
-import Register from "./features/auth/components/Register";
-import CustomerDashboard from "./features/dashboard/CustomerDashboard";
-import ManagerDashboard from "./features/dashboard/ManagerDashboard";
-import AdminDashboard from "./features/dashboard/AdminDashboard";
-import ProtectedRoute from "./shared/components/ProtectedRoute";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import CustomerDashboard from "./components/CustomerDashboard";
+import ManagerDashboard from "./components/ManagerDashboard";
+import AdminDashboard from "./components/AdminDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
