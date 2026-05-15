@@ -20,10 +20,13 @@ export default function Login() {
     // Store token
     localStorage.setItem("token", res.data.token);
 
-    // Get role from response
-    const role = res.data.role;
+    // Get role from response and normalize ROLE_ prefix
+    let role = res.data.role;
+    if (typeof role === "string" && role.startsWith("ROLE_")) {
+      role = role.substring(5);
+    }
 
-    // ✅ Redirect based on role
+    // ✅ Redirect based on normalized role
     if (role === "CUSTOMER") {
       navigate("/customer-dashboard");
     } else if (role === "RESTAURANT_MANAGER") {
