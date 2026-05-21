@@ -37,8 +37,8 @@ export default function AdminDashboard() {
     managerPassword: "",
   });
 
-  // FIX 1: Declare missing state
-  const [useExistingManager, setUseExistingManager] = useState(false);
+  // FIX 1: Only use existing manager during onboarding
+  const useExistingManager = true;
   const [selectedExistingManagerId, setSelectedExistingManagerId] = useState("");
   const [onboardError, setOnboardError] = useState("");
   const [assignManagerId, setAssignManagerId] = useState("");
@@ -141,33 +141,13 @@ export default function AdminDashboard() {
       { label: "Cuisine type", value: onboardForm.cuisineType },
     ];
 
-    if (useExistingManager) {
-      if (!selectedExistingManagerId) {
-        return "Please select an existing manager to assign.";
-      }
-    } else {
-      requiredFields.push(
-        { label: "Manager first name", value: onboardForm.managerFirstname },
-        { label: "Manager last name", value: onboardForm.managerLastname },
-        { label: "Manager email", value: onboardForm.managerEmail },
-        { label: "Manager password", value: onboardForm.managerPassword }
-      );
+    if (!selectedExistingManagerId) {
+      return "Please select an existing manager to assign.";
     }
 
     for (const field of requiredFields) {
       if (!field.value || !field.value.toString().trim()) {
         return `${field.label} is required.`;
-      }
-    }
-
-    if (!useExistingManager) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(onboardForm.managerEmail)) {
-        return "Manager email must be a valid email address.";
-      }
-      const password = onboardForm.managerPassword;
-      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-        return "Password must be at least 8 characters long and include letters and numbers.";
       }
     }
 
@@ -188,7 +168,6 @@ export default function AdminDashboard() {
       managerEmail: "",
       managerPassword: "",
     });
-    setUseExistingManager(false);
     setSelectedExistingManagerId("");
     setOnboardError("");
   };
@@ -204,7 +183,7 @@ export default function AdminDashboard() {
 
     const requestBody = {
       ...onboardForm,
-      existingManagerId: useExistingManager ? selectedExistingManagerId : undefined,
+      existingManagerId: selectedExistingManagerId,
     };
 
     setFormLoading(true);
@@ -355,112 +334,24 @@ export default function AdminDashboard() {
               ))}
 
               <h4 style={styles.sectionTitle}>Manager</h4>
-
-              {/* Toggle: existing vs new manager */}
-              <div style={{ display: "flex", gap: "10px", marginBottom: "8px" }}>
-                <button
-                  type="button"
-                  onClick={() => setUseExistingManager(false)}
-                  style={{
-                    ...styles.cancelBtn,
-                    background: !useExistingManager ? "#fff4f0" : "white",
-                    color: !useExistingManager ? "#FF6B35" : "#555",
-                    border: !useExistingManager ? "1.5px solid #FF6B35" : "1px solid #ececec",
-                    fontWeight: !useExistingManager ? "600" : "400",
-                  }}
+              <div style={styles.fieldGroup}>
+                <label htmlFor="existing-manager" style={styles.label}>Select Existing Manager</label>
+                <select
+                  id="existing-manager"
+                  value={selectedExistingManagerId}
+                  onChange={(e) => setSelectedExistingManagerId(e.target.value)}
+                  style={{ ...inputStyle, cursor: "pointer" }}
                 >
-                  Create New
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseExistingManager(true)}
-                  style={{
-                    ...styles.cancelBtn,
-                    background: useExistingManager ? "#fff4f0" : "white",
-                    color: useExistingManager ? "#FF6B35" : "#555",
-                    border: useExistingManager ? "1.5px solid #FF6B35" : "1px solid #ececec",
-                    fontWeight: useExistingManager ? "600" : "400",
-                  }}
-                >
-                  Assign Existing
-                </button>
+                  <option value="">-- Select a manager --</option>
+                  {managersList.map((manager) => (
+                    <option key={manager.id} value={manager.id}>
+                      {manager.name || (manager.firstname && manager.lastname
+                        ? `${manager.firstname} ${manager.lastname}`
+                        : manager.email)}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              {useExistingManager ? (
-                <div style={styles.fieldGroup}>
-                  <label htmlFor="existing-manager" style={styles.label}>Select Manager</label>
-                  <select
-                    id="existing-manager"
-                    value={selectedExistingManagerId}
-                    onChange={(e) => setSelectedExistingManagerId(e.target.value)}
-                    style={{ ...inputStyle, cursor: "pointer" }}
-                  >
-                    <option value="">-- Select a manager --</option>
-                    {managersList.map((manager) => (
-                      <option key={manager.id} value={manager.id}>
-                        {manager.name || (manager.firstname && manager.lastname
-                          ? `${manager.firstname} ${manager.lastname}`
-                          : manager.email)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <>
-                  <div style={styles.twoCol}>
-                    <div style={styles.fieldGroup}>
-                      <label htmlFor="onboard-managerFirstname" style={styles.label}>First Name</label>
-                      <input
-                        id="onboard-managerFirstname"
-                        name="managerFirstname"
-                        value={onboardForm.managerFirstname}
-                        onChange={(e) => setOnboardForm({ ...onboardForm, managerFirstname: e.target.value })}
-                        placeholder="John"
-                        autoComplete="off"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label htmlFor="onboard-managerLastname" style={styles.label}>Last Name</label>
-                      <input
-                        id="onboard-managerLastname"
-                        name="managerLastname"
-                        value={onboardForm.managerLastname}
-                        onChange={(e) => setOnboardForm({ ...onboardForm, managerLastname: e.target.value })}
-                        placeholder="Doe"
-                        autoComplete="off"
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label htmlFor="onboard-managerEmail" style={styles.label}>Email</label>
-                    <input
-                      id="onboard-managerEmail"
-                      name="managerEmail"
-                      type="email"
-                      value={onboardForm.managerEmail}
-                      onChange={(e) => setOnboardForm({ ...onboardForm, managerEmail: e.target.value })}
-                      placeholder="manager@example.com"
-                      autoComplete="email"
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label htmlFor="onboard-managerPassword" style={styles.label}>Password</label>
-                    <input
-                      id="onboard-managerPassword"
-                      name="managerPassword"
-                      type="password"
-                      value={onboardForm.managerPassword}
-                      onChange={(e) => setOnboardForm({ ...onboardForm, managerPassword: e.target.value })}
-                      placeholder="Min. 8 characters, letters & numbers"
-                      autoComplete="new-password"
-                      style={inputStyle}
-                    />
-                  </div>
-                </>
-              )}
 
               {onboardError && (
                 <p style={styles.errorText}>{onboardError}</p>
