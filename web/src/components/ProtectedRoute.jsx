@@ -5,6 +5,20 @@ const normalizeRole = (role) => {
   return role.startsWith("ROLE_") ? role.substring(5) : role;
 };
 
+const decodeJwtPayload = (token) => {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    return JSON.parse(atob(padded));
+  } catch (error) {
+    console.error("Failed to decode JWT payload", error);
+    return null;
+  }
+};
+
 export default function ProtectedRoute({ children, allowedRole }) {
   const token = localStorage.getItem("token");
 
@@ -15,9 +29,9 @@ export default function ProtectedRoute({ children, allowedRole }) {
 
   try {
     // Decode JWT payload
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const payload = decodeJwtPayload(token);
 
-    const role = normalizeRole(payload.role);
+    const role = normalizeRole(payload?.role);
     const requiredRole = normalizeRole(allowedRole);
 
     // No role found
