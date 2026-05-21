@@ -2,6 +2,7 @@ package com.quickbite.backend.config;
 
 import com.quickbite.backend.model.User;
 import com.quickbite.backend.repository.UserRepository;
+import com.quickbite.backend.security.RoleConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -17,8 +18,8 @@ public class DataInitializer {
     private static final String TEST_USER_EMAIL = "testuser@example.com";
     private static final String TEST_USER_PASSWORD = "Test@1234";
     
-    private static final String ADMIN_EMAIL = "admin@example.com";
-    private static final String ADMIN_PASSWORD = "Admin@1234";
+    private static final String ADMIN_EMAIL = "admin@gmail.com";
+    private static final String ADMIN_PASSWORD = "admin123";
     
     private static final String RESTAURANT_MANAGER_EMAIL = "manager@example.com";
     private static final String RESTAURANT_MANAGER_PASSWORD = "Manager@1234";
@@ -44,10 +45,10 @@ public class DataInitializer {
             if (!userRepository.existsByEmail(ADMIN_EMAIL)) {
                 User adminUser = new User();
                 adminUser.setFirstname("Admin");
-                adminUser.setLastname("User");
+                adminUser.setLastname("");
                 adminUser.setEmail(ADMIN_EMAIL);
                 adminUser.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
-                adminUser.setRole("ADMIN");
+                adminUser.setRole(RoleConstants.ADMIN);
                 userRepository.save(adminUser);
                 logger.info("Seeded admin user: {} / {}", ADMIN_EMAIL, ADMIN_PASSWORD);
             } else {
@@ -61,7 +62,7 @@ public class DataInitializer {
                 managerUser.setLastname("Manager");
                 managerUser.setEmail(RESTAURANT_MANAGER_EMAIL);
                 managerUser.setPassword(passwordEncoder.encode(RESTAURANT_MANAGER_PASSWORD));
-                managerUser.setRole("RESTAURANT_MANAGER");
+                managerUser.setRole(RoleConstants.RESTAURANT_MANAGER);
                 userRepository.save(managerUser);
                 logger.info("Seeded restaurant manager user: {} / {}", RESTAURANT_MANAGER_EMAIL, RESTAURANT_MANAGER_PASSWORD);
             } else {
