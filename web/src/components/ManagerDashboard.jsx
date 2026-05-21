@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = "http://localhost:8086/api";
 
 const STATUS_OPTIONS = ["PLACED", "PREPARING", "DELIVERED"];
 
 export default function ManagerDashboard() {
+  const { restaurantId } = useParams();
   const [orders, setOrders] = useState([]);
+  const [restaurant, setRestaurant] = useState(null);
+  const [sales, setSales] = useState({ totalSales: 0.0, orderCount: 0, menuItemCount: 0 });
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -23,18 +26,64 @@ export default function ManagerDashboard() {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setUser(payload);
     } catch {}
+
+    if (!restaurantId) {
+      fetchAssignedRestaurant();
+      return;
+    }
+
+    fetchRestaurantDetails();
     fetchOrders();
-  }, []);
+    fetchSales();
+  }, [restaurantId]);
+
+  const fetchAssignedRestaurant = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/manager/assigned-restaurant`, authHeaders);
+      if (res.data?.restaurantId) {
+        navigate(`/manager/dashboard/${res.data.restaurantId}`);
+      } else {
+        navigate("/manager/waiting");
+      }
+    } catch (err) {
+      if (err.response?.status === 404) {
+        navigate("/manager/waiting");
+      } else {
+        console.error("Failed to fetch assigned restaurant", err);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRestaurantDetails = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/manager/assigned-restaurant`, authHeaders);
+      setRestaurant(res.data);
+    } catch (err) {
+      console.error("Failed to fetch restaurant details", err);
+    }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/orders`, authHeaders);
+      const res = await axios.get(`${API_URL}/manager/restaurants/${restaurantId}/orders`, authHeaders);
       setOrders(res.data);
     } catch (err) {
       console.error("Failed to fetch orders", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSales = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/manager/restaurants/${restaurantId}/sales`, authHeaders);
+      setSales(res.data || { totalSales: 0.0, orderCount: 0, menuItemCount: 0 });
+    } catch (err) {
+      console.error("Failed to fetch restaurant sales", err);
     }
   };
 

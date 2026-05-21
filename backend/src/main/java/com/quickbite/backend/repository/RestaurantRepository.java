@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface RestaurantRepository extends JpaRepository<Restaurant, String> {
     List<Restaurant> findByOwnerId(String ownerId);
+    List<Restaurant> findByStatusIgnoreCase(String status);
 }
