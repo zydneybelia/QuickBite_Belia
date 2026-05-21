@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { loginUser } from "../services/authService";
+import axios from "axios";
+import { loginUser, BASE_API_URL } from "../services/authService";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
@@ -18,16 +19,49 @@ export default function Login() {
     const res = await loginUser({ email, password });
 
     // Store token
-    localStorage.setItem("token", res.data.token);
+    const token = res.data.token;
+    localStorage.setItem("token", token);
 
-    // Get role from response
-    const role = res.data.role;
+    const decodeJwtRole = (jwt) => {
+      try {
+        const payload = jwt.split(".")[1];
+        const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+        const decoded = JSON.parse(atob(padded));
+        return decoded?.role;
+      } catch (error) {
+        console.error("Failed to decode JWT role", error);
+        return null;
+      }
+    };
 
-    // ✅ Redirect based on role
+    let role = res.data.role || decodeJwtRole(token);
+    if (typeof role === "string" && role.startsWith("ROLE_")) {
+      role = role.substring(5);
+    }
+
+    // ✅ Redirect based on normalized role
     if (role === "CUSTOMER") {
       navigate("/customer-dashboard");
     } else if (role === "RESTAURANT_MANAGER") {
-      navigate("/manager-dashboard");
+      try {
+        const assignedRes = await axios.get(`${BASE_API_URL}/manager/assigned-restaurant`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const assigned = assignedRes.data;
+        if (assigned?.restaurantId) {
+          navigate(`/manager/dashboard/${assigned.restaurantId}`);
+        } else {
+          navigate("/manager/waiting");
+        }
+      } catch (error) {
+        if (error.response?.status === 404) {
+          navigate("/manager/waiting");
+        } else {
+          console.error("Failed to resolve manager restaurant assignment", error);
+          navigate("/manager/waiting");
+        }
+      }
     } else if (role === "ADMIN") {
       navigate("/admin-dashboard");
     } else {
@@ -35,7 +69,9 @@ export default function Login() {
     }
 
   } catch (err) {
-    alert(err.response?.data?.message || "Login failed");
+    const message = err.response?.data?.message || err.message || "Login failed";
+    alert(message);
+    console.error("Login error:", err);
   } finally {
     setLoading(false);
   }

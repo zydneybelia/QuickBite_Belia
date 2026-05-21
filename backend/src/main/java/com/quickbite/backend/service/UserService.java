@@ -61,13 +61,13 @@ public class UserService {
             throw new RuntimeException("Email already in use");
         }
 
-        // Create new user
+        // Create new user as customer only
         User user = new User();
         user.setFirstname(request.getFirstname());
         user.setLastname(request.getLastname());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(request.getRole() != null ? request.getRole() : "CUSTOMER");
+        user.setRole("CUSTOMER");
 
         return userRepository.save(user);
     }
