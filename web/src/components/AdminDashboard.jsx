@@ -34,8 +34,10 @@ export default function AdminDashboard() {
     managerFirstname: "",
     managerLastname: "",
     managerEmail: "",
-    managerPassword: ""
+    managerPassword: "",
   });
+
+  // FIX 1: Declare missing state
   const [useExistingManager, setUseExistingManager] = useState(false);
   const [selectedExistingManagerId, setSelectedExistingManagerId] = useState("");
   const [onboardError, setOnboardError] = useState("");
@@ -55,6 +57,20 @@ export default function AdminDashboard() {
     loadAll();
   }, []);
 
+  useEffect(() => {
+    if (!showOnboardRestaurant) return;
+    const fetchManagers = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/users/managers`, authHeaders);
+        const managersData = Array.isArray(res.data) ? res.data : res.data?.managers || [];
+        setManagers(managersData);
+      } catch (err) {
+        console.error("Failed to fetch managers", err);
+      }
+    };
+    fetchManagers();
+  }, [showOnboardRestaurant]);
+
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -64,12 +80,22 @@ export default function AdminDashboard() {
         axios.get(`${API_URL}/orders`, authHeaders),
         axios.get(`${API_URL}/admin/managers`, authHeaders),
       ]);
-      setUsers(usersRes.data);
-      setRestaurants(restaurantsRes.data);
-      setOrders(ordersRes.data);
-      setManagers(managersRes.data);
+
+      const usersData = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.users || [];
+      const restaurantsData = Array.isArray(restaurantsRes.data) ? restaurantsRes.data : restaurantsRes.data?.restaurants || [];
+      const ordersData = Array.isArray(ordersRes.data) ? ordersRes.data : ordersRes.data?.orders || [];
+      const managersData = Array.isArray(managersRes.data) ? managersRes.data : managersRes.data?.managers || [];
+
+      setUsers(usersData);
+      setRestaurants(restaurantsData);
+      setOrders(ordersData);
+      setManagers(managersData);
     } catch (err) {
       console.error("Failed to load admin data", err);
+      setUsers([]);
+      setRestaurants([]);
+      setOrders([]);
+      setManagers([]);
     } finally {
       setLoading(false);
     }
@@ -139,7 +165,6 @@ export default function AdminDashboard() {
       if (!emailRegex.test(onboardForm.managerEmail)) {
         return "Manager email must be a valid email address.";
       }
-
       const password = onboardForm.managerPassword;
       if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
         return "Password must be at least 8 characters long and include letters and numbers.";
@@ -149,6 +174,7 @@ export default function AdminDashboard() {
     return "";
   };
 
+  // FIX 2: Remove duplicate keys in reset
   const resetOnboardForm = () => {
     setOnboardForm({
       name: "",
@@ -160,7 +186,7 @@ export default function AdminDashboard() {
       managerFirstname: "",
       managerLastname: "",
       managerEmail: "",
-      managerPassword: ""
+      managerPassword: "",
     });
     setUseExistingManager(false);
     setSelectedExistingManagerId("");
@@ -217,7 +243,8 @@ export default function AdminDashboard() {
         `${API_URL}/admin/restaurants/${selectedRestaurant.id}/assign/${assignManagerId}`,
         {}, authHeaders
       );
-      setRestaurants(restaurants.map((r) => r.id === res.data.id ? res.data : r));
+      const restaurantsList = Array.isArray(restaurants) ? restaurants : [];
+      setRestaurants(restaurantsList.map((r) => r.id === res.data.id ? res.data : r));
       setShowAssignManager(false);
       setAssignManagerId("");
       setSelectedRestaurant(null);
@@ -232,7 +259,8 @@ export default function AdminDashboard() {
   const handleDeleteUser = async (id) => {
     try {
       await axios.delete(`${API_URL}/users/${id}`, authHeaders);
-      setUsers(users.filter((u) => u.id !== id));
+      const usersList = Array.isArray(users) ? users : [];
+      setUsers(usersList.filter((u) => u.id !== id));
       setConfirmDelete(null);
     } catch { alert("Failed to delete user"); }
   };
@@ -251,11 +279,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const usersList = Array.isArray(users) ? users : [];
+  const restaurantsList = Array.isArray(restaurants) ? restaurants : [];
+  const managersList = Array.isArray(managers) ? managers : [];
+  const ordersList = Array.isArray(orders) ? orders : [];
+
+  const totalRevenue = ordersList.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const userStats = {
-    total: users.length,
-    customers: users.filter((u) => u.role === "CUSTOMER").length,
-    managers: managers.length,
+    total: usersList.length,
+    customers: usersList.filter((u) => u.role === "CUSTOMER").length,
+    managers: managersList.length,
   };
 
   const inputStyle = {
@@ -281,213 +314,174 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Onboard Restaurant Modal */}
-{showOnboardRestaurant && (
-  <div className="modal-overlay" style={styles.overlay}>
-    <div className="modal-container" style={styles.modal}>
+      {/* FIX 3: Unified, complete Onboard Restaurant Modal */}
+      {showOnboardRestaurant && (
+        <div style={styles.overlay}>
+          <div style={{ ...styles.modal, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Onboard Restaurant</h3>
+              <button
+                type="button"
+                onClick={() => { setShowOnboardRestaurant(false); resetOnboardForm(); }}
+                style={styles.closeBtn}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
 
-      {/* HEADER */}
-      <div style={styles.modalHeader}>
-        <h3 style={styles.modalTitle}>
-          Onboard Restaurant & Manager
-        </h3>
+            <form onSubmit={handleOnboardRestaurant} style={styles.form}>
+              <h4 style={styles.sectionTitle}>Restaurant Details</h4>
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowOnboardRestaurant(false);
-            resetOnboardForm();
-          }}
-          style={styles.closeBtn}
-          aria-label="Close modal"
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* FORM */}
-      <form onSubmit={handleOnboardRestaurant} style={styles.form}>
-
-        <h4 style={styles.sectionTitle}>Restaurant Details</h4>
-
-        {[
-          { label: "Name", key: "name", placeholder: "e.g. Jollibee Cebu" },
-          { label: "Description", key: "description", placeholder: "Short description" },
-          { label: "Location", key: "location", placeholder: "e.g. IT Park, Cebu City" },
-          { label: "Contact Number", key: "contactNumber", placeholder: "e.g. +63 912 345 6789" },
-          { label: "Cuisine Type", key: "cuisineType", placeholder: "e.g. Filipino, Fast Food" },
-        ].map((field) => (
-          <div key={field.key} style={styles.fieldGroup}>
-            <label htmlFor={`onboard-${field.key}`} style={styles.label}>{field.label}</label>
-            <input
-              id={`onboard-${field.key}`}
-              name={field.key}
-              value={onboardForm[field.key]}
-              onChange={(e) =>
-                setOnboardForm({
-                  ...onboardForm,
-                  [field.key]: e.target.value
-                })
-              }
-              placeholder={field.placeholder}
-              required
-              autoComplete="off"
-              style={inputStyle}
-            />
-          </div>
-        ))}
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginBottom: "10px" }}>
-          <h4 style={styles.sectionTitle}>Manager Account</h4>
-          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#555" }}>
-            <input
-              type="checkbox"
-              checked={useExistingManager}
-              onChange={(e) => {
-                setUseExistingManager(e.target.checked);
-                if (!e.target.checked) {
-                  setSelectedExistingManagerId("");
-                }
-              }}
-            />
-            Use existing manager
-          </label>
-        </div>
-
-        {useExistingManager ? (
-          <div style={styles.fieldGroup}>
-            <label htmlFor="existing-manager" style={styles.label}>Select Manager</label>
-            <select
-              id="existing-manager"
-              value={selectedExistingManagerId}
-              onChange={(e) => setSelectedExistingManagerId(e.target.value)}
-              style={{ ...inputStyle, cursor: "pointer" }}
-            >
-              <option value="">-- Select a manager --</option>
-              {managers.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {manager.firstname} {manager.lastname} ({manager.email})
-                </option>
+              {[
+                { label: "Name", key: "name", placeholder: "e.g. Jollibee Cebu" },
+                { label: "Description", key: "description", placeholder: "Short description" },
+                { label: "Location", key: "location", placeholder: "e.g. IT Park, Cebu City" },
+                { label: "Contact Number", key: "contactNumber", placeholder: "e.g. +63 912 345 6789" },
+                { label: "Cuisine Type", key: "cuisineType", placeholder: "e.g. Filipino, Fast Food" },
+              ].map((field) => (
+                <div key={field.key} style={styles.fieldGroup}>
+                  <label htmlFor={`onboard-${field.key}`} style={styles.label}>{field.label}</label>
+                  <input
+                    id={`onboard-${field.key}`}
+                    name={field.key}
+                    value={onboardForm[field.key]}
+                    onChange={(e) => setOnboardForm({ ...onboardForm, [field.key]: e.target.value })}
+                    placeholder={field.placeholder}
+                    autoComplete="off"
+                    style={inputStyle}
+                  />
+                </div>
               ))}
-            </select>
+
+              <h4 style={styles.sectionTitle}>Manager</h4>
+
+              {/* Toggle: existing vs new manager */}
+              <div style={{ display: "flex", gap: "10px", marginBottom: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setUseExistingManager(false)}
+                  style={{
+                    ...styles.cancelBtn,
+                    background: !useExistingManager ? "#fff4f0" : "white",
+                    color: !useExistingManager ? "#FF6B35" : "#555",
+                    border: !useExistingManager ? "1.5px solid #FF6B35" : "1px solid #ececec",
+                    fontWeight: !useExistingManager ? "600" : "400",
+                  }}
+                >
+                  Create New
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUseExistingManager(true)}
+                  style={{
+                    ...styles.cancelBtn,
+                    background: useExistingManager ? "#fff4f0" : "white",
+                    color: useExistingManager ? "#FF6B35" : "#555",
+                    border: useExistingManager ? "1.5px solid #FF6B35" : "1px solid #ececec",
+                    fontWeight: useExistingManager ? "600" : "400",
+                  }}
+                >
+                  Assign Existing
+                </button>
+              </div>
+
+              {useExistingManager ? (
+                <div style={styles.fieldGroup}>
+                  <label htmlFor="existing-manager" style={styles.label}>Select Manager</label>
+                  <select
+                    id="existing-manager"
+                    value={selectedExistingManagerId}
+                    onChange={(e) => setSelectedExistingManagerId(e.target.value)}
+                    style={{ ...inputStyle, cursor: "pointer" }}
+                  >
+                    <option value="">-- Select a manager --</option>
+                    {managersList.map((manager) => (
+                      <option key={manager.id} value={manager.id}>
+                        {manager.name || (manager.firstname && manager.lastname
+                          ? `${manager.firstname} ${manager.lastname}`
+                          : manager.email)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <>
+                  <div style={styles.twoCol}>
+                    <div style={styles.fieldGroup}>
+                      <label htmlFor="onboard-managerFirstname" style={styles.label}>First Name</label>
+                      <input
+                        id="onboard-managerFirstname"
+                        name="managerFirstname"
+                        value={onboardForm.managerFirstname}
+                        onChange={(e) => setOnboardForm({ ...onboardForm, managerFirstname: e.target.value })}
+                        placeholder="John"
+                        autoComplete="off"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label htmlFor="onboard-managerLastname" style={styles.label}>Last Name</label>
+                      <input
+                        id="onboard-managerLastname"
+                        name="managerLastname"
+                        value={onboardForm.managerLastname}
+                        onChange={(e) => setOnboardForm({ ...onboardForm, managerLastname: e.target.value })}
+                        placeholder="Doe"
+                        autoComplete="off"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label htmlFor="onboard-managerEmail" style={styles.label}>Email</label>
+                    <input
+                      id="onboard-managerEmail"
+                      name="managerEmail"
+                      type="email"
+                      value={onboardForm.managerEmail}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, managerEmail: e.target.value })}
+                      placeholder="manager@example.com"
+                      autoComplete="email"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label htmlFor="onboard-managerPassword" style={styles.label}>Password</label>
+                    <input
+                      id="onboard-managerPassword"
+                      name="managerPassword"
+                      type="password"
+                      value={onboardForm.managerPassword}
+                      onChange={(e) => setOnboardForm({ ...onboardForm, managerPassword: e.target.value })}
+                      placeholder="Min. 8 characters, letters & numbers"
+                      autoComplete="new-password"
+                      style={inputStyle}
+                    />
+                  </div>
+                </>
+              )}
+
+              {onboardError && (
+                <p style={styles.errorText}>{onboardError}</p>
+              )}
+
+              <div style={styles.modalBtns}>
+                <button
+                  type="button"
+                  onClick={() => { setShowOnboardRestaurant(false); resetOnboardForm(); }}
+                  style={styles.cancelBtn}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={formLoading} style={styles.orangeBtn}>
+                  {formLoading ? "Onboarding..." : "Onboard Restaurant"}
+                </button>
+              </div>
+            </form>
           </div>
-        ) : (
-          <>
-            <div style={styles.twoCol}>
-              <div style={styles.fieldGroup}>
-                <label htmlFor="onboard-managerFirstname" style={styles.label}>First Name</label>
-                <input
-                  id="onboard-managerFirstname"
-                  name="managerFirstname"
-                  value={onboardForm.managerFirstname}
-                  onChange={(e) =>
-                    setOnboardForm({
-                      ...onboardForm,
-                      managerFirstname: e.target.value
-                    })
-                  }
-                  placeholder="John"
-                  required
-                  autoComplete="given-name"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={styles.fieldGroup}>
-                <label htmlFor="onboard-managerLastname" style={styles.label}>Last Name</label>
-                <input
-                  id="onboard-managerLastname"
-                  name="managerLastname"
-                  value={onboardForm.managerLastname}
-                  onChange={(e) =>
-                    setOnboardForm({
-                      ...onboardForm,
-                      managerLastname: e.target.value
-                    })
-                  }
-                  placeholder="Doe"
-                  required
-                  autoComplete="family-name"
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            <div style={styles.fieldGroup}>
-              <label htmlFor="onboard-managerEmail" style={styles.label}>Email Address</label>
-              <input
-                id="onboard-managerEmail"
-                name="managerEmail"
-                type="email"
-                value={onboardForm.managerEmail}
-                onChange={(e) =>
-                  setOnboardForm({
-                    ...onboardForm,
-                    managerEmail: e.target.value
-                  })
-                }
-                placeholder="manager@example.com"
-                required
-                autoComplete="email"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={styles.fieldGroup}>
-              <label htmlFor="onboard-managerPassword" style={styles.label}>Password</label>
-              <input
-                id="onboard-managerPassword"
-                name="managerPassword"
-                type="password"
-                value={onboardForm.managerPassword}
-                onChange={(e) =>
-                  setOnboardForm({
-                    ...onboardForm,
-                    managerPassword: e.target.value
-                  })
-                }
-                placeholder="Min. 8 characters, letters & numbers"
-                required
-                autoComplete="new-password"
-                style={inputStyle}
-              />
-            </div>
-          </>
-        )}
-
-        {/* ERROR */}
-        {onboardError && (
-          <p style={styles.errorText}>
-            {onboardError}
-          </p>
-        )}
-
-        {/* BUTTONS */}
-        <div style={styles.modalBtns}>
-          <button
-            type="button"
-            onClick={() => {
-              setShowOnboardRestaurant(false);
-              resetOnboardForm();
-            }}
-            style={styles.cancelBtn}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            disabled={formLoading}
-            style={styles.orangeBtn}
-          >
-            {formLoading ? "Onboarding..." : "Onboard Restaurant"}
-          </button>
         </div>
-
-      </form>
-    </div>
-  </div>
-)}
+      )}
 
       {/* Create Restaurant Modal */}
       {showCreateRestaurant && (
@@ -589,7 +583,7 @@ export default function AdminDashboard() {
                   style={{ ...inputStyle, cursor: "pointer" }}
                 >
                   <option value="">-- Select a manager --</option>
-                  {managers.map((m) => (
+                  {managersList.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.firstname} {m.lastname} ({m.email})
                     </option>
@@ -625,9 +619,9 @@ export default function AdminDashboard() {
           {[
             { key: "overview",    label: "Overview",    icon: "📊" },
             { key: "users",       label: "Users",       icon: "👥", badge: userStats.total },
-            { key: "restaurants", label: "Restaurants", icon: "🏪", badge: restaurants.length },
-            { key: "managers",    label: "Managers",    icon: "👨‍💼", badge: managers.length },
-            { key: "orders",      label: "Orders",      icon: "📦", badge: orders.length },
+            { key: "restaurants", label: "Restaurants", icon: "🏪", badge: restaurantsList.length },
+            { key: "managers",    label: "Managers",    icon: "👨‍💼", badge: managersList.length },
+            { key: "orders",      label: "Orders",      icon: "📦", badge: ordersList.length },
           ].map((item) => (
             <button
               key={item.key}
@@ -672,9 +666,9 @@ export default function AdminDashboard() {
             <p style={styles.pageSubtitle}>
               {activeTab === "overview"    && "System overview and stats"}
               {activeTab === "users"       && `${userStats.total} registered users`}
-              {activeTab === "restaurants" && `${restaurants.length} restaurants`}
-              {activeTab === "managers"    && `${managers.length} managers`}
-              {activeTab === "orders"      && `${orders.length} total orders`}
+              {activeTab === "restaurants" && `${restaurantsList.length} restaurants`}
+              {activeTab === "managers"    && `${managersList.length} managers`}
+              {activeTab === "orders"      && `${ordersList.length} total orders`}
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
@@ -702,8 +696,8 @@ export default function AdminDashboard() {
               { icon: "👥", label: "Total Users",   value: userStats.total },
               { icon: "🍽️", label: "Customers",     value: userStats.customers },
               { icon: "👨‍💼", label: "Managers",      value: userStats.managers },
-              { icon: "🏪", label: "Restaurants",   value: restaurants.length },
-              { icon: "📦", label: "Total Orders",  value: orders.length },
+              { icon: "🏪", label: "Restaurants",   value: restaurantsList.length },
+              { icon: "📦", label: "Total Orders",  value: ordersList.length },
               { icon: "💰", label: "Total Revenue", value: `₱${totalRevenue.toFixed(2)}` },
             ].map((s) => (
               <div key={s.label} style={styles.statCard}>
@@ -725,9 +719,9 @@ export default function AdminDashboard() {
                 <tr>{["Name", "Email", "Role", "Created At", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
-                {users.length === 0 ? (
-                  <tr><td colSpan={5} style={styles.emptyCell}>No users found.</td></tr>
-                ) : users.map((u) => (
+                {usersList.length === 0 ? (
+                  <tr><td colSpan={5} style={styles.emptyCell}>No users yet.</td></tr>
+                ) : usersList.map((u) => (
                   <tr key={u.id} style={styles.tr}>
                     <td style={styles.td}>
                       <div style={styles.nameCell}>
@@ -759,12 +753,12 @@ export default function AdminDashboard() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>{["Restaurant", "Location", "Contact", "Cuisine", "Status", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                <tr>{["Restaurant", "Location", "Contact", "Cuisine", "Status", "Assigned Manager", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
-                {restaurants.length === 0 ? (
-                  <tr><td colSpan={6} style={styles.emptyCell}>No restaurants yet. Click "+ New Restaurant" to add one.</td></tr>
-                ) : restaurants.map((r) => (
+                {restaurantsList.length === 0 ? (
+                  <tr><td colSpan={7} style={styles.emptyCell}>No restaurants yet. Click "+ Onboard Restaurant" to add one.</td></tr>
+                ) : restaurantsList.map((r) => (
                   <tr key={r.id} style={styles.tr}>
                     <td style={styles.td}>
                       <div style={styles.nameCell}>
@@ -783,6 +777,7 @@ export default function AdminDashboard() {
                         {r.status}
                       </span>
                     </td>
+                    <td style={styles.td}>{r.managerName || "Unassigned"}</td>
                     <td style={styles.td}>
                       <button onClick={() => { setSelectedRestaurant(r); setShowAssignManager(true); }} style={styles.assignBtn}>
                         Assign Manager
@@ -803,9 +798,9 @@ export default function AdminDashboard() {
                 <tr>{["Name", "Email", "Role"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
-                {managers.length === 0 ? (
-                  <tr><td colSpan={3} style={styles.emptyCell}>No managers yet. Click "+ New Manager" to create one.</td></tr>
-                ) : managers.map((m) => (
+                {managersList.length === 0 ? (
+                  <tr><td colSpan={3} style={styles.emptyCell}>No managers yet. Click "+New Manager" to add one.</td></tr>
+                ) : managersList.map((m) => (
                   <tr key={m.id} style={styles.tr}>
                     <td style={styles.td}>
                       <div style={styles.nameCell}>
@@ -832,9 +827,9 @@ export default function AdminDashboard() {
                 <tr>{["Order ID", "Customer", "Total", "Status", "Date"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
-                {orders.length === 0 ? (
-                  <tr><td colSpan={5} style={styles.emptyCell}>No orders found.</td></tr>
-                ) : orders.map((o) => {
+                {ordersList.length === 0 ? (
+                  <tr><td colSpan={5} style={styles.emptyCell}>No orders yet.</td></tr>
+                ) : ordersList.map((o) => {
                   const sc = statusColor(o.status);
                   return (
                     <tr key={o.id} style={styles.tr}>
@@ -859,16 +854,18 @@ const styles = {
   page: { display: "flex", minHeight: "100vh", background: "#f7f5f2", fontFamily: "'Segoe UI', sans-serif" },
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
   modal: { background: "white", borderRadius: "16px", padding: "2rem", width: "100%", maxWidth: "460px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" },
-  modalTitle: { fontSize: "18px", fontWeight: "700", color: "#1a1a1a", margin: "0 0 6px" },
+  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" },
+  modalTitle: { fontSize: "18px", fontWeight: "700", color: "#1a1a1a", margin: 0 },
   modalText: { fontSize: "14px", color: "#888", margin: "0 0 1.25rem", lineHeight: "1.6" },
   modalBtns: { display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "1.25rem" },
+  closeBtn: { background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: "#aaa", padding: "4px 8px", borderRadius: "6px" },
   cancelBtn: { padding: "9px 18px", borderRadius: "8px", border: "1px solid #ececec", background: "white", fontSize: "14px", cursor: "pointer", color: "#555" },
   redBtn: { padding: "9px 18px", borderRadius: "8px", border: "none", background: "#ef4444", color: "white", fontSize: "14px", fontWeight: "600", cursor: "pointer" },
   orangeBtn: { padding: "9px 18px", borderRadius: "8px", border: "none", background: "#FF6B35", color: "white", fontSize: "14px", fontWeight: "600", cursor: "pointer" },
   form: { display: "flex", flexDirection: "column", gap: "12px" },
   twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" },
   fieldGroup: { display: "flex", flexDirection: "column", gap: "5px" },
-  sectionTitle: { margin: "18px 0 8px", fontSize: "14px", fontWeight: "700", color: "#1a1a1a" },
+  sectionTitle: { margin: "8px 0 4px", fontSize: "14px", fontWeight: "700", color: "#1a1a1a" },
   errorText: { color: "#b91c1c", fontSize: "13px", margin: "0 0 0.5rem" },
   label: { fontSize: "13px", fontWeight: "500", color: "#555" },
   sidebar: { width: "240px", minHeight: "100vh", background: "#ffffff", borderRight: "1px solid #ececec", display: "flex", flexDirection: "column", padding: "1.5rem 1rem", position: "fixed", top: 0, left: 0, bottom: 0 },
@@ -909,4 +906,4 @@ const styles = {
   pill: { fontSize: "11px", fontWeight: "600", padding: "3px 10px", borderRadius: "999px" },
   deleteRowBtn: { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: "6px", padding: "5px 10px", fontSize: "12px", fontWeight: "600", cursor: "pointer" },
   assignBtn: { background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "6px", padding: "5px 10px", fontSize: "12px", fontWeight: "600", cursor: "pointer" },
-};  
+};

@@ -13,6 +13,8 @@ export default function Dashboard() {
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -38,10 +40,17 @@ export default function Dashboard() {
   const fetchRestaurants = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/restaurants`, authHeaders);
-      setRestaurants(res.data);
+      const res = await axios.get(`${API_URL}/customer/restaurants`, authHeaders);
+      const restaurantsRes = Array.isArray(res.data)
+        ? res.data
+        : res.data?.restaurants || [];
+      if (!Array.isArray(res.data)) {
+        console.error("Unexpected restaurants response shape", res.data);
+      }
+      setRestaurants(restaurantsRes);
     } catch (err) {
       console.error("Failed to fetch restaurants", err);
+      setRestaurants([]);
     } finally {
       setLoading(false);
     }
@@ -108,6 +117,22 @@ export default function Dashboard() {
 
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const restaurantList = Array.isArray(restaurants) ? restaurants : [];
+
+  // Extract unique categories from restaurants
+  const categories = ["all", ...new Set(restaurantList.map(r => r.category || "Other"))];
+
+  // Filter restaurants by search and category
+  const filteredRestaurants = restaurantList.filter(restaurant => {
+    const matchesSearch =
+      restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (restaurant.description && restaurant.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (restaurant.location && restaurant.location.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesCategory = selectedCategory === "all" || (restaurant.category || "Other") === selectedCategory;
+
+    return matchesSearch && matchesCategory;
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -209,6 +234,30 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Search & Filter Bar (Restaurants Tab) */}
+        {activeTab === "restaurants" && (
+          <div style={styles.filterBar}>
+            <input
+              type="text"
+              placeholder="Search restaurants, cuisine, or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={styles.searchInput}
+            />
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              style={styles.filterSelect}
+            >
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category === "all" ? "All Categories" : category}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {loading && (
           <div style={styles.loadingRow}>
             <div style={styles.spinner} />
@@ -219,18 +268,18 @@ export default function Dashboard() {
         {/* Restaurants Tab */}
         {activeTab === "restaurants" && !loading && (
           <div style={styles.grid}>
-            {restaurants.length === 0 ? (
+            {filteredRestaurants.length === 0 ? (
               <div style={styles.empty}>
                 <span style={{ fontSize: "48px" }}>🏪</span>
-                <p>No restaurants available yet.</p>
+                <p>{restaurantList.length === 0 ? "No restaurants available yet." : "No restaurants match your search."}</p>
               </div>
             ) : (
-              restaurants.map((r) => (
+              filteredRestaurants.map((r) => (
                 <div
                   key={r.id}
                   style={styles.card}
-                  onClick={() => handleSelectRestaurant(r)}
-                >
+                    onClick={() => handleSelectRestaurant(r)}
+                  >
                   <div style={styles.cardImg}>
                     <span style={{ fontSize: "40px" }}>🍽️</span>
                   </div>
@@ -872,5 +921,33 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     gap: "12px",
+  },
+  filterBar: {
+    display: "flex",
+    gap: "12px",
+    marginBottom: "1.5rem",
+    flexWrap: "wrap",
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: "200px",
+    padding: "12px 16px",
+    border: "1px solid #ececec",
+    borderRadius: "999px",
+    fontSize: "14px",
+    background: "white",
+    outline: "none",
+    transition: "border-color 0.2s",
+  },
+  filterSelect: {
+    padding: "12px 16px",
+    border: "1px solid #ececec",
+    borderRadius: "999px",
+    fontSize: "14px",
+    background: "white",
+    cursor: "pointer",
+    outline: "none",
+    minWidth: "150px",
+    transition: "border-color 0.2s",
   },
 };
