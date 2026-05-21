@@ -1,5 +1,6 @@
 package com.quickbite.backend.security;
 
+import com.quickbite.backend.security.RoleConstants;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -47,10 +48,10 @@ public class JwtTokenProvider {
                 .subject(username)
                 .claim("userId", userId)
                 .claim("email", email)
-                .claim("role", role)
+                .claim("role", role.startsWith("ROLE_") ? role.substring(5) : role)
                 .issuedAt(now)
                 .expiration(expiryDate)
-                .signWith(getSigningKey())  // ✅ No need to specify algorithm
+                .signWith(getSigningKey())
                 .compact();
     }
 
@@ -58,8 +59,8 @@ public class JwtTokenProvider {
         return getClaims(token).getSubject();
     }
 
-    public Long getUserIdFromToken(String token) {
-        return getClaims(token).get("userId", Long.class);
+    public String getUserIdFromToken(String token) {
+        return getClaims(token).get("userId", String.class);
     }
 
     public String getEmailFromToken(String token) {
@@ -67,7 +68,11 @@ public class JwtTokenProvider {
     }
 
     public String getRoleFromToken(String token) {
-        return getClaims(token).get("role", String.class);
+        String role = getClaims(token).get("role", String.class);
+        if (role != null && role.startsWith("ROLE_")) {
+            return role.substring(5);
+        }
+        return role;
     }
 
     public boolean validateToken(String token) {

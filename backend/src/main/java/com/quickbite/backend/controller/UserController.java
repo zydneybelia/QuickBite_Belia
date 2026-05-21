@@ -6,9 +6,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
+@CrossOrigin(origins = "*")
 public class UserController {
 
     @Autowired
@@ -25,6 +28,18 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
+        @GetMapping("/managers")
+        public List<Map<String, String>> getManagers() {
+        return userService.getAllUsers().stream()
+            .filter(u -> "RESTAURANT_MANAGER".equals(u.getRole()) || u.getRole() != null && u.getRole().contains("MANAGER"))
+            .map(u -> Map.of(
+                "id", u.getId(),
+                "name", (u.getFirstname() == null ? "" : u.getFirstname()) + (u.getLastname() == null ? "" : " " + u.getLastname()),
+                "email", u.getEmail()
+            ))
+            .collect(Collectors.toList());
+        }
 
     @PutMapping("/{id}")
     public ResponseEntity<User> updateUser(@PathVariable String id, @RequestBody User user) {

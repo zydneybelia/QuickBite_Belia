@@ -1,6 +1,7 @@
 package com.quickbite.backend.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
 @Entity
@@ -18,25 +19,33 @@ public class Restaurant {
 
     private String location;                    // ✅ renamed from address (matches ERD)
 
+    private String contactNumber;               // ✅ admin onboarding field
+
+    private String cuisineType;                 // ✅ admin onboarding field
+
     @Column(nullable = false)
     private String status = "active";           // ✅ active/inactive (matches ERD)
 
     // Many-to-One: Multiple restaurants belong to one user/owner
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @JoinColumn(name = "owner_id", nullable = true)
+    @JsonIgnore
     private User owner;
 
     // One-to-Many: One restaurant can have multiple menu items
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<MenuItem> menuItems;
 
     // Constructors
     public Restaurant() {}
 
-    public Restaurant(String name, String description, String location, User owner) {
+    public Restaurant(String name, String description, String location, String contactNumber, String cuisineType, User owner) {
         this.name = name;
         this.description = description;
         this.location = location;
+        this.contactNumber = contactNumber;
+        this.cuisineType = cuisineType;
         this.owner = owner;
     }
 
@@ -52,6 +61,12 @@ public class Restaurant {
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+
+    public String getContactNumber() { return contactNumber; }
+    public void setContactNumber(String contactNumber) { this.contactNumber = contactNumber; }
+
+    public String getCuisineType() { return cuisineType; }
+    public void setCuisineType(String cuisineType) { this.cuisineType = cuisineType; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
