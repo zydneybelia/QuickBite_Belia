@@ -7,7 +7,7 @@ Compiled successfully.
 
 File sizes after gzip:
 
-  105.72 kB  build\static\js\main.34d71552.js
+  105.89 kB  build\static\js\main.32c31364.js
   1.76 kB    build\static\js\453.bbf24fa1.chunk.js
   263 B      build\static\css\main.e6c13ad2.css
 

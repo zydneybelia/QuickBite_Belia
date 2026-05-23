@@ -49,12 +49,16 @@ export default function Login() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const assigned = assignedRes.data;
+        console.debug("Login: assigned-restaurant response:", assigned);
         if (assigned?.restaurantId) {
-          navigate(`/manager/dashboard/${assigned.restaurantId}`);
+          console.debug("Login: navigating to manager restaurant dashboard for restaurant", assigned.restaurantId);
+          navigate(`/manager/restaurant/${assigned.restaurantId}`);
         } else {
+          console.debug("Login: no assigned restaurant, navigating to waiting page");
           navigate("/manager/waiting");
         }
       } catch (error) {
+        console.debug("Login: error fetching assigned restaurant", error?.response?.status || error?.message || error);
         if (error.response?.status === 404) {
           navigate("/manager/waiting");
         } else {
