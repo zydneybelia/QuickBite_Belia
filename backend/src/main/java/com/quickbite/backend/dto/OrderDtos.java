@@ -6,6 +6,10 @@ public class OrderDtos {
 
     public record OrderStatusUpdateRequest(String status) {}
 
+    public record OrderItemRequest(String menuItemId, Integer quantity) {}
+
+    public record CreateOrderRequest(String userId, List<OrderItemRequest> items) {}
+
     public record OrderItemSummary(String menuItemName, Integer quantity, Double price) {}
 
     public record OrderResponse(
