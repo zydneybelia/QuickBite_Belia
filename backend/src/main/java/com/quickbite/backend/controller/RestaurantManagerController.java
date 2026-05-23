@@ -4,7 +4,9 @@ import com.quickbite.backend.dto.MenuItemDtos.MenuItemRequest;
 import com.quickbite.backend.dto.MenuItemDtos.MenuItemResponse;
 import com.quickbite.backend.dto.OrderDtos.OrderItemSummary;
 import com.quickbite.backend.dto.OrderDtos.OrderResponse;
+import com.quickbite.backend.dto.OrderDtos.OrderStatsResponse;
 import com.quickbite.backend.dto.OrderDtos.OrderStatusUpdateRequest;
+import com.quickbite.backend.dto.AssignedRestaurantResponse;
 import com.quickbite.backend.dto.RestaurantDtos.RestaurantRequest;
 import com.quickbite.backend.dto.RestaurantDtos.RestaurantResponse;
 import com.quickbite.backend.dto.RestaurantDtos.RestaurantSalesResponse;
@@ -45,6 +47,9 @@ public class RestaurantManagerController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private com.quickbite.backend.service.ManagerService managerService;
 
     private String getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -87,6 +92,13 @@ public class RestaurantManagerController {
                 .stream()
                 .map(this::toRestaurantResponse)
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/assigned-restaurant")
+    public AssignedRestaurantResponse getAssignedRestaurant() {
+        requireManagerRole();
+        String managerId = getCurrentUserId();
+        return managerService.getAssignedRestaurantForManager(managerId);
     }
 
     @PostMapping("/restaurants")
@@ -137,9 +149,29 @@ public class RestaurantManagerController {
         menuItem.setName(request.name());
         menuItem.setDescription(request.description());
         menuItem.setPrice(request.price());
+        menuItem.setCategory(request.category());
         menuItem.setAvailability(request.availability() != null ? request.availability() : true);
         menuItem.setRestaurant(restaurant);
         return toMenuItemResponse(menuItemRepository.save(menuItem));
+    }
+
+    @GetMapping("/restaurants/{id}/orders/stats")
+    public OrderStatsResponse getRestaurantOrderStats(@PathVariable String id) {
+        requireManagerRole();
+        getManagedRestaurant(id);
+
+        Long totalOrdersCount = orderRepository.countDistinctOrdersByRestaurantId(id);
+        Long placedCount = orderRepository.countDistinctByStatusAndRestaurantId("PLACED", id);
+        Long preparingCount = orderRepository.countDistinctByStatusAndRestaurantId("PREPARING", id);
+        Long deliveredCount = orderRepository.countDistinctByStatusAndRestaurantId("DELIVERED", id);
+
+        return new OrderStatsResponse(
+                id,
+                totalOrdersCount != null ? totalOrdersCount : 0L,
+                placedCount != null ? placedCount : 0L,
+                preparingCount != null ? preparingCount : 0L,
+                deliveredCount != null ? deliveredCount : 0L
+        );
     }
 
     @PutMapping("/restaurants/{id}/menu/{menuItemId}")
@@ -154,6 +186,7 @@ public class RestaurantManagerController {
         menuItem.setName(request.name());
         menuItem.setDescription(request.description());
         menuItem.setPrice(request.price());
+        menuItem.setCategory(request.category());
         menuItem.setAvailability(request.availability() != null ? request.availability() : menuItem.getAvailability());
         return toMenuItemResponse(menuItemRepository.save(menuItem));
     }
@@ -227,6 +260,7 @@ public class RestaurantManagerController {
                 item.getName(),
                 item.getDescription(),
                 item.getPrice(),
+                item.getCategory(),
                 item.getAvailability()
         );
     }

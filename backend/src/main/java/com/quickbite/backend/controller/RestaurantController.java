@@ -1,7 +1,9 @@
 package com.quickbite.backend.controller;
 
+import com.quickbite.backend.dto.MenuItemDtos;
 import com.quickbite.backend.model.Restaurant;
 import com.quickbite.backend.repository.RestaurantRepository;
+import com.quickbite.backend.service.MenuService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +18,9 @@ public class RestaurantController {
 
     @Autowired
     private RestaurantRepository restaurantRepository;
+
+    @Autowired
+    private MenuService menuService;
 
     @GetMapping
     public List<Restaurant> getAllRestaurants() {
@@ -63,5 +68,10 @@ public class RestaurantController {
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/{restaurantId}/menu")
+    public ResponseEntity<List<MenuItemDtos.MenuItemResponse>> getRestaurantMenu(@PathVariable String restaurantId) {
+        return ResponseEntity.ok(menuService.getMenuItemsForRestaurant(restaurantId));
     }
 }
