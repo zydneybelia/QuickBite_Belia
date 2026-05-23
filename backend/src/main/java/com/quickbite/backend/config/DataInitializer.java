@@ -1,7 +1,9 @@
 package com.quickbite.backend.config;
 
 import com.quickbite.backend.model.User;
+import com.quickbite.backend.model.Restaurant;
 import com.quickbite.backend.repository.UserRepository;
+import com.quickbite.backend.repository.RestaurantRepository;
 import com.quickbite.backend.security.RoleConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +27,7 @@ public class DataInitializer {
     private static final String RESTAURANT_MANAGER_PASSWORD = "Manager@1234";
 
     @Bean
-    public CommandLineRunner seedTestUser(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public CommandLineRunner seedTestUser(UserRepository userRepository, PasswordEncoder passwordEncoder, RestaurantRepository restaurantRepository) {
         return args -> {
             // Seed Customer User
             if (!userRepository.existsByEmail(TEST_USER_EMAIL)) {
@@ -68,6 +70,24 @@ public class DataInitializer {
             } else {
                 logger.info("Restaurant manager user already exists: {}", RESTAURANT_MANAGER_EMAIL);
             }
+
+            // Ensure manager has an assigned restaurant for development convenience
+            userRepository.findByEmail(RESTAURANT_MANAGER_EMAIL).ifPresent(manager -> {
+                if (restaurantRepository.findByOwnerId(manager.getId()).isEmpty()) {
+                    Restaurant sample = new Restaurant();
+                    sample.setName("Seeded Manager's Diner");
+                    sample.setDescription("Sample restaurant assigned to seeded manager");
+                    sample.setLocation("123 Demo St");
+                    sample.setContactNumber("+1-555-0100");
+                    sample.setCuisineType("International");
+                    sample.setStatus("active");
+                    sample.setOwner(manager);
+                    restaurantRepository.save(sample);
+                    logger.info("Seeded restaurant for manager {}: {}", RESTAURANT_MANAGER_EMAIL, sample.getName());
+                } else {
+                    logger.info("Manager {} already has a restaurant assigned", RESTAURANT_MANAGER_EMAIL);
+                }
+            });
         };
     }
 }
