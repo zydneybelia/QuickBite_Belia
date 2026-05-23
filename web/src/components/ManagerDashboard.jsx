@@ -11,6 +11,10 @@ export default function ManagerDashboard() {
   const [orders, setOrders] = useState([]);
   const [restaurant, setRestaurant] = useState(null);
   const [sales, setSales] = useState({ totalSales: 0.0, orderCount: 0, menuItemCount: 0 });
+  const [orderStats, setOrderStats] = useState({ totalOrdersCount: 0, placedCount: 0, preparingCount: 0, deliveredCount: 0 });
+  const [showAddMenuModal, setShowAddMenuModal] = useState(false);
+  const [newMenuItem, setNewMenuItem] = useState({ name: "", description: "", price: "", category: "Main", availability: true });
+  const [addingMenuItem, setAddingMenuItem] = useState(false);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -35,6 +39,7 @@ export default function ManagerDashboard() {
     fetchRestaurantDetails();
     fetchOrders();
     fetchSales();
+    fetchOrderStats();
   }, [restaurantId]);
 
   const fetchAssignedRestaurant = async () => {
@@ -42,7 +47,7 @@ export default function ManagerDashboard() {
     try {
       const res = await axios.get(`${API_URL}/manager/assigned-restaurant`, authHeaders);
       if (res.data?.restaurantId) {
-        navigate(`/manager/dashboard/${res.data.restaurantId}`);
+        navigate(`/manager/restaurant/${res.data.restaurantId}`);
       } else {
         navigate("/manager/waiting");
       }
@@ -87,10 +92,68 @@ export default function ManagerDashboard() {
     }
   };
 
+  const fetchOrderStats = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/manager/restaurants/${restaurantId}/orders/stats`, authHeaders);
+      setOrderStats(res.data || { totalOrdersCount: 0, placedCount: 0, preparingCount: 0, deliveredCount: 0 });
+    } catch (err) {
+      console.error("Failed to fetch order stats", err);
+    }
+  };
+
+  const handleAddMenuItem = async () => {
+    if (!restaurantId || !newMenuItem.name.trim()) {
+      alert("Please enter a menu item name");
+      return;
+    }
+    setAddingMenuItem(true);
+    try {
+      const response = await axios.post(`${API_URL}/manager/restaurants/${restaurantId}/menu`, {
+        name: newMenuItem.name,
+        description: newMenuItem.description,
+        price: parseFloat(newMenuItem.price),
+        category: newMenuItem.category,
+        availability: newMenuItem.availability,
+      }, authHeaders);
+      
+      // ✅ SUCCESS FEEDBACK
+      alert("✓ Menu Item Added Successfully!");
+      
+      setShowAddMenuModal(false);
+      setNewMenuItem({ name: "", description: "", price: "", category: "Main", availability: true });
+      fetchOrders();
+      fetchOrderStats();
+      fetchSales();
+    } catch (err) {
+      // ✅ DETAILED ERROR LOGGING
+      const status = err.response?.status;
+      const errorMsg = err.response?.data?.message || err.response?.data || err.message;
+      console.error(`[${status}] Failed to add menu item:`, errorMsg);
+      
+      // Provide user-friendly error messages
+      if (status === 401) {
+        alert("Authentication failed. Please log in again.");
+      } else if (status === 403) {
+        alert("You don't have permission to add items to this restaurant.");
+      } else if (status === 400) {
+        alert(`Validation error: ${errorMsg}`);
+      } else {
+        alert("Could not add the menu item. Please verify the fields and try again.");
+      }
+    } finally {
+      setAddingMenuItem(false);
+    }
+  };
+
+  const closeAddMenuModal = () => {
+    setShowAddMenuModal(false);
+    setNewMenuItem({ name: "", description: "", price: "", category: "Main", availability: true });
+  };
+
   const handleStatusUpdate = async (orderId, newStatus) => {
     setUpdatingId(orderId);
     try {
-      await axios.put(`${API_URL}/orders/${orderId}`,
+      await axios.put(`${API_URL}/manager/restaurants/${restaurantId}/orders/${orderId}/status`,
         { status: newStatus }, authHeaders);
       setOrders(orders.map((o) =>
         o.id === orderId ? { ...o, status: newStatus } : o
@@ -121,6 +184,8 @@ export default function ManagerDashboard() {
       default:          return { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" };
     }
   };
+
+  const restaurantName = restaurant?.name || "Your restaurant";
 
   return (
     <div style={styles.page}>
@@ -180,11 +245,31 @@ export default function ManagerDashboard() {
         <div style={styles.header}>
           <div>
             <h1 style={styles.pageTitle}>Order Management</h1>
+            <p style={styles.restaurantName}>{restaurantName}</p>
             <p style={styles.pageSubtitle}>{orders.length} total orders</p>
           </div>
-          <button onClick={fetchOrders} style={styles.refreshBtn}>
-            ↻ Refresh
-          </button>
+          <div style={styles.headerActions}>
+            <button onClick={() => setShowAddMenuModal(true)} style={styles.primaryBtn}>
+              + Add Menu Item
+            </button>
+            <button onClick={fetchOrders} style={styles.refreshBtn}>
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+
+        <div style={styles.statsGrid}>
+          {[
+            { label: "Total Orders", value: orderStats.totalOrdersCount, color: "#1f2937" },
+            { label: "Placed", value: orderStats.placedCount, color: "#ea580c" },
+            { label: "Preparing", value: orderStats.preparingCount, color: "#ca8a04" },
+            { label: "Delivered", value: orderStats.deliveredCount, color: "#16a34a" },
+          ].map((stat) => (
+            <div key={stat.label} style={styles.statsCard}>
+              <span style={styles.statsLabel}>{stat.label}</span>
+              <span style={{ ...styles.statsValue, color: stat.color }}>{stat.value}</span>
+            </div>
+          ))}
         </div>
 
         {/* Filter tabs */}
@@ -204,6 +289,63 @@ export default function ManagerDashboard() {
             </button>
           ))}
         </div>
+
+        {showAddMenuModal && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalContent}>
+              <h2 style={styles.modalTitle}>Add Menu Item</h2>
+              <div style={styles.modalBody}>
+                <label style={styles.modalLabel}>Name</label>
+                <input
+                  type="text"
+                  value={newMenuItem.name}
+                  onChange={(e) => setNewMenuItem({ ...newMenuItem, name: e.target.value })}
+                  style={styles.modalInput}
+                  placeholder="Item name"
+                />
+                <label style={styles.modalLabel}>Description</label>
+                <textarea
+                  value={newMenuItem.description}
+                  onChange={(e) => setNewMenuItem({ ...newMenuItem, description: e.target.value })}
+                  style={styles.modalTextarea}
+                  placeholder="Item description"
+                />
+                <div style={styles.modalRow}>
+                  <div style={styles.modalField}>
+                    <label style={styles.modalLabel}>Price</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newMenuItem.price}
+                      onChange={(e) => setNewMenuItem({ ...newMenuItem, price: e.target.value })}
+                      style={styles.modalInput}
+                      placeholder="₱0.00"
+                    />
+                  </div>
+                  <div style={styles.modalField}>
+                    <label style={styles.modalLabel}>Category</label>
+                    <input
+                      type="text"
+                      value={newMenuItem.category}
+                      onChange={(e) => setNewMenuItem({ ...newMenuItem, category: e.target.value })}
+                      style={styles.modalInput}
+                      placeholder="Main, Dessert, Drink"
+                    />
+                  </div>
+                </div>
+                <div style={styles.modalActions}>
+                  <button onClick={closeAddMenuModal} style={styles.secondaryBtn}>
+                    Cancel
+                  </button>
+                  <button onClick={handleAddMenuItem} style={styles.primaryBtn} disabled={addingMenuItem}>
+                    {addingMenuItem ? "Adding…" : "Save Item"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div style={styles.loadingRow}>
@@ -315,6 +457,7 @@ const styles = {
   main: { marginLeft: "240px", flex: 1, padding: "2rem" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem" },
   pageTitle: { fontSize: "24px", fontWeight: "700", color: "#1a1a1a", margin: "0 0 4px", letterSpacing: "-0.4px" },
+  restaurantName: { fontSize: "16px", color: "#555", margin: "0 0 8px", fontWeight: "600" },
   pageSubtitle: { fontSize: "14px", color: "#aaa", margin: 0 },
   refreshBtn: { background: "white", border: "1px solid #ececec", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", color: "#555", cursor: "pointer" },
   filterRow: { display: "flex", gap: "8px", marginBottom: "1.25rem", flexWrap: "wrap" },
@@ -334,4 +477,21 @@ const styles = {
   updateLabel: { fontSize: "11px", color: "#aaa", margin: 0, fontWeight: "600" },
   statusBtns: { display: "flex", gap: "6px" },
   statusBtn: { padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "500", transition: "all 0.15s" },
+  headerActions: { display: "flex", gap: "10px", alignItems: "center" },
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px", marginBottom: "24px" },
+  statsCard: { background: "white", borderRadius: "16px", padding: "18px 20px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)", minHeight: "110px", display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  statsLabel: { fontSize: "13px", color: "#6b7280", marginBottom: "10px" },
+  statsValue: { fontSize: "28px", fontWeight: "700" },
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.35)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50, padding: "20px" },
+  modalContent: { width: "100%", maxWidth: "520px", background: "white", borderRadius: "20px", overflow: "hidden", boxShadow: "0 40px 120px rgba(15, 23, 42, 0.12)" },
+  modalBody: { padding: "24px" },
+  modalTitle: { margin: 0, fontSize: "20px", fontWeight: "700", color: "#111827", marginBottom: "18px" },
+  modalLabel: { display: "block", marginBottom: "8px", fontSize: "13px", fontWeight: "600", color: "#374151" },
+  modalInput: { width: "100%", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "12px 14px", fontSize: "14px", color: "#111827", marginBottom: "14px" },
+  modalTextarea: { width: "100%", minHeight: "100px", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "12px 14px", fontSize: "14px", color: "#111827", marginBottom: "14px", resize: "vertical" },
+  modalRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "18px" },
+  modalField: { display: "flex", flexDirection: "column" },
+  modalActions: { display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "14px" },
+  primaryBtn: { background: "#FF6B35", color: "white", border: "none", borderRadius: "10px", padding: "10px 16px", cursor: "pointer", fontWeight: "700" },
+  secondaryBtn: { background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", borderRadius: "10px", padding: "10px 16px", cursor: "pointer", fontWeight: "700" },
 };
