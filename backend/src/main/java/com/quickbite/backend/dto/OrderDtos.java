@@ -16,4 +16,12 @@ public class OrderDtos {
             String userId,
             List<OrderItemSummary> items
     ) {}
+
+    public record OrderStatsResponse(
+            String restaurantId,
+            Long totalOrdersCount,
+            Long placedCount,
+            Long preparingCount,
+            Long deliveredCount
+    ) {}
 }

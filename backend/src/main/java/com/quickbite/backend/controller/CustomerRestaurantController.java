@@ -1,16 +1,15 @@
 package com.quickbite.backend.controller;
 
+import com.quickbite.backend.dto.MenuItemDtos;
 import com.quickbite.backend.dto.RestaurantDto;
+import com.quickbite.backend.service.MenuService;
 import com.quickbite.backend.service.RestaurantService;
-import com.quickbite.backend.service.SupabaseAuthService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -19,28 +18,23 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class CustomerRestaurantController {
 
-    private final SupabaseAuthService authService;
     private final RestaurantService restaurantService;
+    private final MenuService menuService;
 
-    public CustomerRestaurantController(SupabaseAuthService authService, RestaurantService restaurantService) {
-        this.authService = authService;
+    public CustomerRestaurantController(RestaurantService restaurantService, MenuService menuService) {
         this.restaurantService = restaurantService;
+        this.menuService = menuService;
     }
 
     @GetMapping
-    public ResponseEntity<List<RestaurantDto>> getActiveRestaurants(
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
-
-        String token = extractBearerToken(authorizationHeader);
-        authService.validateCustomerToken(token);
+    public ResponseEntity<List<RestaurantDto>> getActiveRestaurants() {
         List<RestaurantDto> restaurants = restaurantService.getActiveRestaurants();
         return ResponseEntity.ok(restaurants);
     }
 
-    private String extractBearerToken(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization header must contain a Bearer token");
-        }
-        return authorizationHeader.substring(7);
+    @GetMapping("/{restaurantId}/menu")
+    public ResponseEntity<List<MenuItemDtos.MenuItemResponse>> getRestaurantMenu(@PathVariable String restaurantId) {
+        List<MenuItemDtos.MenuItemResponse> menuItems = menuService.getMenuItemsForRestaurant(restaurantId);
+        return ResponseEntity.ok(menuItems);
     }
 }

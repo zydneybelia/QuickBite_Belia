@@ -19,6 +19,8 @@ public class MenuItem {
     @Column(nullable = false)
     private Double price;
 
+    private String category;
+
     @Column(nullable = false)
     private Boolean availability = true;
 
@@ -39,10 +41,11 @@ public class MenuItem {
     public MenuItem() {}
 
     public MenuItem(String name, String description, Double price,
-                    Boolean availability, Restaurant restaurant) {
+                    String category, Boolean availability, Restaurant restaurant) {
         this.name = name;
         this.description = description;
         this.price = price;
+        this.category = category;
         this.availability = availability;
         this.restaurant = restaurant;
     }
@@ -62,6 +65,9 @@ public class MenuItem {
 
     public Boolean getAvailability() { return availability; }
     public void setAvailability(Boolean availability) { this.availability = availability; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
     public Restaurant getRestaurant() { return restaurant; }
     public void setRestaurant(Restaurant restaurant) { this.restaurant = restaurant; }

@@ -23,8 +23,8 @@ public class SecurityConfig {
             .cors(cors -> {}) // enable CORS support
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/customer/restaurants", "/api/health").permitAll()
-                .requestMatchers("/api/users/**", "/api/admin/**", "/api/orders", "/api/manager/**").authenticated()
+                .requestMatchers("/api/auth/**", "/api/health").permitAll()
+                .requestMatchers("/api/customer/restaurants/**", "/api/users/**", "/api/admin/**", "/api/orders", "/api/manager/**").authenticated()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form.disable())
