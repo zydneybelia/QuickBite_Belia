@@ -22,6 +22,9 @@ public class RestaurantDtos {
             String managerName
     ) {}
 
+    // AssignedRestaurantResponse is defined as a standalone DTO in AssignedRestaurantResponse.java
+    // to avoid duplication remove the inner record definition here.
+
     public record RestaurantSalesResponse(
             String restaurantId,
             Double totalSales,

@@ -22,16 +22,22 @@ export default function RestaurantMenu() {
     setError("");
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${API_URL}/customer/restaurants/${restaurantId}/menu`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      const response = await axios.get(`${API_URL}/restaurants/${restaurantId}/menu`);
       const data = Array.isArray(response.data) ? response.data : [];
       setMenuItems(data);
     } catch (err) {
-      console.error("Failed to load menu items", err);
-      setError("Unable to load menu items. Please try again.");
+      const status = err.response?.status;
+      const errorMsg = err.response?.data?.message || err.response?.data || err.message;
+      console.error(`[${status}] Failed to load menu items from restaurant ${restaurantId}:`, errorMsg);
+      
+      // Provide helpful error messages
+      if (status === 404) {
+        setError("Restaurant not found.");
+      } else if (status === 400) {
+        setError("This restaurant is temporarily unavailable. Please try again later.");
+      } else {
+        setError("Unable to load menu items. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -67,7 +73,10 @@ export default function RestaurantMenu() {
           <div key={item.id} style={styles.menuCard}>
             <div>
               <div style={styles.menuHeader}>
-                <h3 style={styles.menuTitle}>{item.name}</h3>
+                <div>
+                  <h3 style={styles.menuTitle}>{item.name}</h3>
+                  <p style={styles.menuCategory}>{item.category || "General"}</p>
+                </div>
                 <span style={styles.price}>₱{item.price?.toFixed(2)}</span>
               </div>
               <p style={styles.menuDescription}>{item.description || "No description provided."}</p>
@@ -155,6 +164,11 @@ const styles = {
     fontSize: "14px",
     lineHeight: 1.6,
     marginBottom: "16px",
+  },
+  menuCategory: {
+    fontSize: "12px",
+    color: "#9ca3af",
+    margin: "2px 0 0",
   },
   addButton: {
     background: "#10b981",

@@ -22,4 +22,10 @@ public interface OrderRepository extends JpaRepository<Order, String> {
 
     @Query("SELECT SUM(oi.quantity * oi.price) FROM OrderItem oi WHERE oi.menuItem.restaurant.id = :restaurantId")
     Double findTotalSalesByRestaurantId(@Param("restaurantId") String restaurantId);
+
+    @Query("SELECT COUNT(DISTINCT o) FROM Order o JOIN o.orderItems oi WHERE oi.menuItem.restaurant.id = :restaurantId")
+    Long countDistinctOrdersByRestaurantId(@Param("restaurantId") String restaurantId);
+
+    @Query("SELECT COUNT(DISTINCT o) FROM Order o JOIN o.orderItems oi WHERE o.status = :status AND oi.menuItem.restaurant.id = :restaurantId")
+    Long countDistinctByStatusAndRestaurantId(@Param("status") String status, @Param("restaurantId") String restaurantId);
 }

@@ -5,6 +5,7 @@ import CustomerDashboard from "./components/CustomerDashboard";
 import RestaurantList from "./components/RestaurantList";
 import RestaurantMenu from "./components/RestaurantMenu";
 import ManagerDashboard from "./components/ManagerDashboard";
+import ManagerRedirect from "./components/ManagerRedirect";
 import ManagerWaiting from "./components/ManagerWaiting";
 import AdminDashboard from "./components/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -47,12 +48,12 @@ function App() {
           path="/manager-dashboard"
           element={
             <ProtectedRoute allowedRole="RESTAURANT_MANAGER">
-              <ManagerDashboard />
+              <ManagerRedirect />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/manager/dashboard/:restaurantId"
+          path="/manager/restaurant/:restaurantId"
           element={
             <ProtectedRoute allowedRole="RESTAURANT_MANAGER">
               <ManagerDashboard />
