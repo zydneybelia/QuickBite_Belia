@@ -1,0 +1,34 @@
+package com.quickbite.backend.dto;
+
+public class RestaurantDtos {
+
+    public record RestaurantRequest(
+            String name,
+            String description,
+            String location,
+            String contactNumber,
+            String cuisineType,
+            String status
+    ) {}
+
+    public record RestaurantResponse(
+            String id,
+            String name,
+            String description,
+            String location,
+            String contactNumber,
+            String cuisineType,
+            String status,
+            String managerName
+    ) {}
+
+    // AssignedRestaurantResponse is defined as a standalone DTO in AssignedRestaurantResponse.java
+    // to avoid duplication remove the inner record definition here.
+
+    public record RestaurantSalesResponse(
+            String restaurantId,
+            Double totalSales,
+            Long orderCount,
+            Long menuItemCount
+    ) {}
+}

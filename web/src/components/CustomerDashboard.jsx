@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = "http://localhost:8083/api";
+const API_URL = "http://localhost:8086/api";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("restaurants");
@@ -13,6 +13,12 @@ export default function Dashboard() {
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(1);
+  const [orderPlacedMsg, setOrderPlacedMsg] = useState("");
+  const [showOrderPlaced, setShowOrderPlaced] = useState(false);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -38,10 +44,17 @@ export default function Dashboard() {
   const fetchRestaurants = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/restaurants`, authHeaders);
-      setRestaurants(res.data);
+      const res = await axios.get(`${API_URL}/customer/restaurants`, authHeaders);
+      const restaurantsRes = Array.isArray(res.data)
+        ? res.data
+        : res.data?.restaurants || [];
+      if (!Array.isArray(res.data)) {
+        console.error("Unexpected restaurants response shape", res.data);
+      }
+      setRestaurants(restaurantsRes);
     } catch (err) {
       console.error("Failed to fetch restaurants", err);
+      setRestaurants([]);
     } finally {
       setLoading(false);
     }
@@ -50,10 +63,11 @@ export default function Dashboard() {
   const fetchMenuItems = async (restaurantId) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/menu-items/restaurant/${restaurantId}`, authHeaders);
+      const res = await axios.get(`${API_URL}/customer/restaurants/${restaurantId}/menu`, authHeaders);
       setMenuItems(res.data);
     } catch (err) {
       console.error("Failed to fetch menu", err);
+      setMenuItems([]);
     } finally {
       setLoading(false);
     }
@@ -71,6 +85,7 @@ export default function Dashboard() {
   const fetchOrders = async () => {
     try {
       const res = await axios.get(`${API_URL}/orders`, authHeaders);
+      console.log('fetchOrders response:', res.data);
       setOrders(res.data);
     } catch (err) {
       console.error("Failed to fetch orders", err);
@@ -106,8 +121,77 @@ export default function Dashboard() {
     }).filter(Boolean));
   };
 
+  const openCheckoutModal = () => {
+    if (cart.length === 0) return;
+    setCheckoutStep(1);
+    setCheckoutOpen(true);
+  };
+
+  const closeCheckoutModal = () => {
+    setCheckoutOpen(false);
+    setCheckoutStep(1);
+  };
+
+  const checkoutItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const checkoutSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const deliveryFee = checkoutItemCount > 0 ? 50 : 0;
+  const checkoutTotal = checkoutSubtotal + deliveryFee;
+  const visibleCheckoutItems = cart.filter((item) => item.quantity > 0);
+  const restaurantName = selectedRestaurant?.name || "Selected Restaurant";
+  const restaurantLocation = selectedRestaurant?.location || "Your location";
+  const estimatedDelivery = selectedRestaurant?.estimatedDelivery || "25–35 min";
+
+  const handleProceedToReview = () => {
+    if (checkoutItemCount > 0) {
+      setCheckoutStep(2);
+    }
+  };
+
+  const handleConfirmPay = async () => {
+    try {
+      await axios.post(`${API_URL}/orders`, {
+        totalAmount: checkoutTotal,
+        status: "PLACED",
+        items: visibleCheckoutItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        restaurantId: selectedRestaurant?.id,
+      }, authHeaders);
+      setCart([]);
+      // Refresh orders for the user and navigate to Orders tab so user sees the new order
+      await fetchOrders();
+      setActiveTab("orders");
+      setOrderPlacedMsg("Your order has been placed.");
+      setShowOrderPlaced(true);
+      setTimeout(() => setShowOrderPlaced(false), 5000);
+    } catch (err) {
+      console.error("Checkout failed", err);
+    } finally {
+      closeCheckoutModal();
+    }
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const restaurantList = Array.isArray(restaurants) ? restaurants : [];
+
+  // Extract unique categories from restaurants
+  const categories = ["all", ...new Set(restaurantList.map(r => r.category || "Other"))];
+
+  // Filter restaurants by search and category
+  const filteredRestaurants = restaurantList.filter(restaurant => {
+    const matchesSearch =
+      restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (restaurant.description && restaurant.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (restaurant.location && restaurant.location.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesCategory = selectedCategory === "all" || (restaurant.category || "Other") === selectedCategory;
+
+    return matchesSearch && matchesCategory;
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -197,6 +281,9 @@ export default function Dashboard() {
               {activeTab === "orders" && `${orders.length} order${orders.length !== 1 ? "s" : ""} placed`}
             </p>
           </div>
+          {showOrderPlaced && (
+            <div style={styles.successBanner}>{orderPlacedMsg}</div>
+          )}
           {activeTab === "menu" && (
             <button onClick={() => setActiveTab("restaurants")} style={styles.backBtn}>
               ← Back
@@ -209,6 +296,30 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Search & Filter Bar (Restaurants Tab) */}
+        {activeTab === "restaurants" && (
+          <div style={styles.filterBar}>
+            <input
+              type="text"
+              placeholder="Search restaurants, cuisine, or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={styles.searchInput}
+            />
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              style={styles.filterSelect}
+            >
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category === "all" ? "All Categories" : category}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {loading && (
           <div style={styles.loadingRow}>
             <div style={styles.spinner} />
@@ -219,18 +330,18 @@ export default function Dashboard() {
         {/* Restaurants Tab */}
         {activeTab === "restaurants" && !loading && (
           <div style={styles.grid}>
-            {restaurants.length === 0 ? (
+            {filteredRestaurants.length === 0 ? (
               <div style={styles.empty}>
                 <span style={{ fontSize: "48px" }}>🏪</span>
-                <p>No restaurants available yet.</p>
+                <p>{restaurantList.length === 0 ? "No restaurants available yet." : "No restaurants match your search."}</p>
               </div>
             ) : (
-              restaurants.map((r) => (
+              filteredRestaurants.map((r) => (
                 <div
                   key={r.id}
                   style={styles.card}
-                  onClick={() => handleSelectRestaurant(r)}
-                >
+                    onClick={() => handleSelectRestaurant(r)}
+                  >
                   <div style={styles.cardImg}>
                     <span style={{ fontSize: "40px" }}>🍽️</span>
                   </div>
@@ -350,12 +461,133 @@ export default function Dashboard() {
                       ₱{(cartTotal + 50).toFixed(2)}
                     </span>
                   </div>
-                  <button style={styles.checkoutBtn}>
+                  <button style={styles.checkoutBtn} onClick={openCheckoutModal}>
                     Place Order →
                   </button>
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {checkoutOpen && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalBox}>
+              {checkoutStep === 1 ? (
+                <div>
+                  <div style={styles.modalHeader}>
+                    <div>
+                      <h2 style={styles.modalTitle}>{restaurantName}</h2>
+                      <p style={styles.modalSubtitle}>{restaurantLocation}</p>
+                      <p style={styles.modalDelivery}>Estimated delivery: {estimatedDelivery}</p>
+                    </div>
+                    <button style={styles.modalCloseBtn} onClick={closeCheckoutModal}>✕</button>
+                  </div>
+
+                  <div style={styles.modalBody}>
+                    {visibleCheckoutItems.length === 0 ? (
+                      <p style={styles.emptyOrderText}>Your cart is empty. Add items to review your order.</p>
+                    ) : (
+                      <div style={styles.modalGrid}>
+                        {visibleCheckoutItems.map((item) => (
+                          <div key={item.id} style={styles.modalItem}>
+                            <div style={styles.itemEmoji}>{item.emoji || "🍽️"}</div>
+                            <div style={styles.itemDetails}>
+                              <p style={styles.itemName}>{item.name}</p>
+                              <p style={styles.itemDesc}>{item.description || "No description available."}</p>
+                              <p style={styles.itemPrice}>₱{item.price?.toFixed(2)}</p>
+                            </div>
+                            <div style={styles.qtyControlsModal}>
+                              <button
+                                style={styles.qtyBtnModal}
+                                onClick={() => handleQuantityChange(item.id, -1)}
+                              >
+                                −
+                              </button>
+                              <span style={styles.qtyNumModal}>{item.quantity}</span>
+                              <button
+                                style={styles.qtyBtnModal}
+                                onClick={() => handleQuantityChange(item.id, 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={styles.modalFooter}>
+                    <div style={styles.modalSummary}>
+                      <span>{checkoutItemCount} item{checkoutItemCount !== 1 ? "s" : ""}</span>
+                      <strong>₱{checkoutTotal.toFixed(2)}</strong>
+                    </div>
+                    <button
+                      style={styles.secondaryBtn}
+                      onClick={handleProceedToReview}
+                      disabled={visibleCheckoutItems.length === 0}
+                    >
+                      Review order
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={styles.modalHeader}>
+                    <div>
+                      <h2 style={styles.modalTitle}>Review your order</h2>
+                      <p style={styles.modalSubtitle}>Check the details before confirming.</p>
+                    </div>
+                    <button style={styles.modalCloseBtn} onClick={closeCheckoutModal}>✕</button>
+                  </div>
+
+                  <div style={styles.modalBody}>
+                    {visibleCheckoutItems.length === 0 ? (
+                      <p style={styles.emptyOrderText}>Add at least one item to continue.</p>
+                    ) : (
+                      <>
+                        <div style={styles.reviewList}>
+                          {visibleCheckoutItems.map((item) => (
+                            <div key={item.id} style={styles.reviewItem}>
+                              <div>
+                                <p style={styles.itemName}>{item.name}</p>
+                                <p style={styles.itemDesc}>Qty {item.quantity} · ₱{item.price?.toFixed(2)} each</p>
+                              </div>
+                              <strong>₱{(item.price * item.quantity).toFixed(2)}</strong>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={styles.reviewBreakdown}>
+                          <div style={styles.breakdownRow}>
+                            <span>Subtotal</span>
+                            <span>₱{checkoutSubtotal.toFixed(2)}</span>
+                          </div>
+                          <div style={styles.breakdownRow}>
+                            <span>Delivery fee</span>
+                            <span>₱{deliveryFee.toFixed(2)}</span>
+                          </div>
+                          <div style={styles.breakdownRowTotal}>
+                            <span>Total</span>
+                            <strong>₱{checkoutTotal.toFixed(2)}</strong>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div style={styles.reviewActions}>
+                    <button style={styles.confirmBtn} onClick={handleConfirmPay} disabled={visibleCheckoutItems.length === 0}>
+                      Confirm & Pay
+                    </button>
+                    <button style={styles.cancelBtn} onClick={closeCheckoutModal}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -373,6 +605,9 @@ export default function Dashboard() {
             ) : (
               orders.map((order) => {
                 const sc = statusColor(order.status);
+                const statusLabel = (order.status || "").toLowerCase();
+                const itemsList = order.orderItems || order.items || [];
+
                 return (
                   <div key={order.id} style={styles.orderCard}>
                     <div style={styles.orderHeader}>
@@ -390,9 +625,24 @@ export default function Dashboard() {
                         color: sc.color,
                         fontWeight: "600",
                       }}>
-                        {order.status}
+                        {statusLabel}
                       </span>
                     </div>
+
+                    {itemsList.length > 0 && (
+                      <div style={styles.orderItems}>
+                        {itemsList.map((it) => (
+                          <div key={it.id || it.menuItemId || `${order.id}-${Math.random()}`} style={styles.orderItemRow}>
+                            <div>
+                              <p style={styles.orderItemName}>{it.menuItemName || it.name || (it.menuItem && it.menuItem.name) || "Item"}</p>
+                              <p style={styles.orderItemMeta}>Qty {it.quantity} · ₱{(it.price || it.unitPrice || 0).toFixed(2)} each</p>
+                            </div>
+                            <div style={styles.orderItemTotal}>₱{((it.price || it.unitPrice || 0) * (it.quantity || 0)).toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div style={styles.orderFooter}>
                       <span style={styles.orderTotal}>
                         Total: <strong>₱{order.totalAmount?.toFixed(2)}</strong>
@@ -546,6 +796,15 @@ const styles = {
     color: "#1a1a1a",
     margin: "0 0 4px",
     letterSpacing: "-0.4px",
+  },
+  successBanner: {
+    marginTop: "12px",
+    padding: "10px 14px",
+    background: "#ecfdf5",
+    color: "#065f46",
+    border: "1px solid #bbf7d0",
+    borderRadius: "10px",
+    fontWeight: "600",
   },
   pageSubtitle: {
     fontSize: "14px",
@@ -796,6 +1055,243 @@ const styles = {
     fontSize: "14px",
     padding: "4px",
   },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 23, 42, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+    padding: "20px",
+  },
+  modalBox: {
+    width: "100%",
+    maxWidth: "560px",
+    background: "white",
+    borderRadius: "24px",
+    overflow: "hidden",
+    boxShadow: "0 30px 80px rgba(15, 23, 42, 0.18)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: "16px",
+    padding: "24px",
+    borderBottom: "1px solid #f3f4f6",
+  },
+  modalTitle: {
+    fontSize: "22px",
+    fontWeight: "700",
+    margin: 0,
+    color: "#111827",
+  },
+  modalSubtitle: {
+    margin: "8px 0 0",
+    color: "#6b7280",
+    fontSize: "14px",
+    lineHeight: 1.6,
+  },
+  modalDelivery: {
+    margin: "12px 0 0",
+    color: "#374151",
+    fontSize: "14px",
+    fontWeight: "600",
+  },
+  modalCloseBtn: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "12px",
+    border: "1px solid #e5e7eb",
+    background: "white",
+    color: "#374151",
+    cursor: "pointer",
+    fontSize: "16px",
+    fontWeight: "700",
+  },
+  modalBody: {
+    padding: "20px 24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "18px",
+  },
+  modalGrid: {
+    display: "grid",
+    gap: "16px",
+  },
+  modalItem: {
+    display: "grid",
+    gridTemplateColumns: "auto 1fr auto",
+    gap: "16px",
+    alignItems: "center",
+    background: "#f8fafc",
+    borderRadius: "18px",
+    padding: "16px",
+  },
+  itemEmoji: {
+    fontSize: "26px",
+    width: "42px",
+    height: "42px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "14px",
+    background: "#fff1f0",
+  },
+  itemDetails: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+  },
+  itemName: {
+    margin: 0,
+    fontSize: "15px",
+    fontWeight: "700",
+    color: "#111827",
+  },
+  itemDesc: {
+    margin: 0,
+    fontSize: "13px",
+    color: "#6b7280",
+  },
+  itemPrice: {
+    margin: 0,
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "#FF6B35",
+  },
+  qtyControlsModal: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+  qtyBtnModal: {
+    width: "34px",
+    height: "34px",
+    borderRadius: "12px",
+    border: "1px solid #e5e7eb",
+    background: "white",
+    cursor: "pointer",
+    color: "#FF6B35",
+    fontSize: "18px",
+    fontWeight: "700",
+  },
+  qtyNumModal: {
+    minWidth: "24px",
+    textAlign: "center",
+    fontWeight: "700",
+    color: "#111827",
+  },
+  modalFooter: {
+    padding: "20px 24px 24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px",
+    borderTop: "1px solid #f3f4f6",
+  },
+  modalSummary: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontSize: "15px",
+    color: "#111827",
+  },
+  secondaryBtn: {
+    background: "#FF6B35",
+    color: "white",
+    border: "none",
+    borderRadius: "999px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "700",
+    cursor: "pointer",
+  },
+  reviewList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  },
+  reviewItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 16px",
+    borderRadius: "16px",
+    background: "#f8fafc",
+    fontSize: "14px",
+    color: "#111827",
+  },
+  reviewTotal: {
+    marginTop: "12px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontWeight: "700",
+    fontSize: "16px",
+    color: "#111827",
+    padding: "14px 16px",
+    borderRadius: "16px",
+    background: "#f3f4f6",
+  },
+  reviewBreakdown: {
+    display: "grid",
+    gap: "10px",
+    padding: "14px",
+    borderRadius: "16px",
+    background: "#f8fafc",
+  },
+  breakdownRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    color: "#6b7280",
+    fontSize: "14px",
+  },
+  breakdownRowTotal: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "16px",
+    fontWeight: "700",
+    color: "#111827",
+  },
+  reviewActions: {
+    display: "flex",
+    gap: "12px",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    padding: "0 24px 24px",
+  },
+  confirmBtn: {
+    flex: 1,
+    minWidth: "160px",
+    background: "#111827",
+    color: "white",
+    border: "none",
+    borderRadius: "999px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "700",
+    cursor: "pointer",
+  },
+  cancelBtn: {
+    flex: 1,
+    minWidth: "160px",
+    background: "transparent",
+    color: "#6b7280",
+    border: "1px solid #d1d5db",
+    borderRadius: "999px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "700",
+    cursor: "pointer",
+  },
+  emptyOrderText: {
+    color: "#6b7280",
+    fontSize: "14px",
+    textAlign: "center",
+    padding: "16px 0",
+  },
   cartSummary: {
     background: "white",
     borderRadius: "14px",
@@ -862,6 +1358,38 @@ const styles = {
     fontSize: "14px",
     color: "#555",
   },
+  orderItems: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    marginBottom: "10px",
+  },
+  orderItemRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "10px",
+    borderRadius: "12px",
+    background: "#f8fafc",
+  },
+  orderItemName: {
+    margin: 0,
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#111827",
+  },
+  orderItemMeta: {
+    margin: 0,
+    fontSize: "12px",
+    color: "#6b7280",
+  },
+  orderItemTotal: {
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "#111827",
+    minWidth: "80px",
+    textAlign: "right",
+  },
   empty: {
     gridColumn: "1 / -1",
     textAlign: "center",
@@ -872,5 +1400,33 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     gap: "12px",
+  },
+  filterBar: {
+    display: "flex",
+    gap: "12px",
+    marginBottom: "1.5rem",
+    flexWrap: "wrap",
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: "200px",
+    padding: "12px 16px",
+    border: "1px solid #ececec",
+    borderRadius: "999px",
+    fontSize: "14px",
+    background: "white",
+    outline: "none",
+    transition: "border-color 0.2s",
+  },
+  filterSelect: {
+    padding: "12px 16px",
+    border: "1px solid #ececec",
+    borderRadius: "999px",
+    fontSize: "14px",
+    background: "white",
+    cursor: "pointer",
+    outline: "none",
+    minWidth: "150px",
+    transition: "border-color 0.2s",
   },
 };

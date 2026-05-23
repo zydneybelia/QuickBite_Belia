@@ -1,16 +1,16 @@
 # 🍔 QuickBite
 
-QuickBite is a food ordering and delivery system developed for the **System Integration and Architecture** course.
+QuickBite is a food ordering and delivery system developed for the System Integration and Architecture course.
 
 It provides a simple platform for:
 - Browsing restaurants
 - Viewing menus
 - Managing cart
-- Placing food orders
+- Placing food orders online
 
 ---
 
-# 📌 Features
+## ⚙️ Features
 
 ## 🔐 User Authentication
 - User Registration
@@ -58,8 +58,3 @@ It provides a simple platform for:
 - Supabase Account
 
 ## Database Config (`application.properties`)
-```properties
-spring.datasource.url=jdbc:postgresql://YOUR_HOST:5432/postgres
-spring.datasource.username=YOUR_USERNAME
-spring.datasource.password=YOUR_PASSWORD
-spring.datasource.driver-class-name=org.postgresql.Driver
