@@ -74,7 +74,6 @@ export default function AdminDashboard() {
   };
 
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [confirmDeleteManager, setConfirmDeleteManager] = useState(null);
   const [showOnboardRestaurant, setShowOnboardRestaurant] = useState(false);
   const [showCreateRestaurant, setShowCreateRestaurant] = useState(false);
   const [showEditRestaurant, setShowEditRestaurant] = useState(false);
@@ -285,13 +284,17 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteManager = async (managerId) => {
+  const handleToggleManagerStatus = async (managerId, isActive) => {
+    setFormLoading(true);
     try {
-      await axios.delete(`${API_URL}/users/${managerId}`, authHeaders);
+      const endpoint = isActive ? "deactivate" : "activate";
+      await axios.put(`${API_URL}/admin/managers/${managerId}/${endpoint}`, {}, authHeaders);
       await loadAll();
-      setConfirmDeleteManager(null);
     } catch (err) {
-      console.error("Failed to delete manager", err);
+      console.error("Failed to update manager status", err);
+      alert("Unable to update manager status. Please try again.");
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -328,19 +331,6 @@ export default function AdminDashboard() {
             <div style={styles.modalBtns}>
               <button onClick={() => setConfirmDelete(null)} style={styles.cancelBtn}>Cancel</button>
               <button onClick={() => handleDeleteUser(confirmDelete.id)} style={styles.redBtn}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDeleteManager && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>Delete Manager</h3>
-            <p style={styles.modalText}>Are you sure you want to delete manager <strong>{confirmDeleteManager.managerName || "this manager"}</strong> from <strong>{confirmDeleteManager.restaurantName || "the restaurant"}</strong>? This will delete their account and unassign them.</p>
-            <div style={styles.modalBtns}>
-              <button onClick={() => setConfirmDeleteManager(null)} style={styles.cancelBtn}>Cancel</button>
-              <button onClick={() => handleDeleteManager(confirmDeleteManager.id)} style={styles.redBtn}>Delete</button>
             </div>
           </div>
         </div>
@@ -803,7 +793,7 @@ export default function AdminDashboard() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>{["Name", "Email", "Role", "Assigned Restaurant", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                <tr>{["Name", "Email", "Role", "Status", "Assigned Restaurant", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {managersList.length === 0 ? (
@@ -822,6 +812,15 @@ export default function AdminDashboard() {
                       <td style={styles.td}>
                         <span style={{ ...styles.pill, background: "#eff6ff", color: "#2563eb" }}>{m.role}</span>
                       </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.pill,
+                          background: m.active ? "#ecfdf5" : "#fef2f2",
+                          color: m.active ? "#16a34a" : "#dc2626",
+                        }}>
+                          {m.active ? "Active" : "Disabled"}
+                        </span>
+                      </td>
                       <td style={styles.td}>{assignedRestaurant?.name || "Unassigned"}</td>
                       <td style={styles.td}>
                         <div style={{ display: "flex", gap: "8px" }}>
@@ -832,10 +831,10 @@ export default function AdminDashboard() {
                             Update
                           </button>
                           <button
-                            onClick={() => setConfirmDeleteManager({ id: m.id, managerName: m.firstname + " " + m.lastname, restaurantName: assignedRestaurant?.name || "N/A" })}
-                            style={styles.deleteRowBtn}
+                            onClick={() => handleToggleManagerStatus(m.id, m.active)}
+                            style={m.active ? styles.deleteRowBtn : { ...styles.assignBtn, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
                           >
-                            Delete
+                            {m.active ? "Disable" : "Activate"}
                           </button>
                         </div>
                       </td>
