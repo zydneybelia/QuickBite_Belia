@@ -16,7 +16,8 @@ public class AdminDtos {
             String firstname,
             String lastname,
             String email,
-            String role
+            String role,
+            boolean active
     ) {}
 
     public record OnboardRestaurantRequest(

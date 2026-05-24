@@ -37,6 +37,7 @@ public class DataInitializer {
                 testUser.setEmail(TEST_USER_EMAIL);
                 testUser.setPassword(passwordEncoder.encode(TEST_USER_PASSWORD));
                 testUser.setRole("CUSTOMER");
+                testUser.setActive(true);
                 userRepository.save(testUser);
                 logger.info("Seeded customer user: {} / {}", TEST_USER_EMAIL, TEST_USER_PASSWORD);
             } else {
@@ -51,6 +52,7 @@ public class DataInitializer {
                 adminUser.setEmail(ADMIN_EMAIL);
                 adminUser.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
                 adminUser.setRole(RoleConstants.ADMIN);
+                adminUser.setActive(true);
                 userRepository.save(adminUser);
                 logger.info("Seeded admin user: {} / {}", ADMIN_EMAIL, ADMIN_PASSWORD);
             } else {
@@ -65,6 +67,7 @@ public class DataInitializer {
                 managerUser.setEmail(RESTAURANT_MANAGER_EMAIL);
                 managerUser.setPassword(passwordEncoder.encode(RESTAURANT_MANAGER_PASSWORD));
                 managerUser.setRole(RoleConstants.RESTAURANT_MANAGER);
+                managerUser.setActive(true);
                 userRepository.save(managerUser);
                 logger.info("Seeded restaurant manager user: {} / {}", RESTAURANT_MANAGER_EMAIL, RESTAURANT_MANAGER_PASSWORD);
             } else {

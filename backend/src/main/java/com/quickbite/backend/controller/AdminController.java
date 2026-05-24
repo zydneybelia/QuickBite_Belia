@@ -268,6 +268,30 @@ public class AdminController {
                 .collect(Collectors.toList());
     }
 
+    @PutMapping("/managers/{managerId}/deactivate")
+    public ManagerResponse deactivateManager(@PathVariable String managerId) {
+        requireAdminRole();
+        User manager = userRepository.findById(managerId)
+                .orElseThrow(() -> new RuntimeException("Manager user not found"));
+        if (!RoleConstants.RESTAURANT_MANAGER.equals(manager.getRole())) {
+            throw new RuntimeException("User is not a restaurant manager");
+        }
+        manager.setActive(false);
+        return toManagerResponse(userRepository.save(manager));
+    }
+
+    @PutMapping("/managers/{managerId}/activate")
+    public ManagerResponse activateManager(@PathVariable String managerId) {
+        requireAdminRole();
+        User manager = userRepository.findById(managerId)
+                .orElseThrow(() -> new RuntimeException("Manager user not found"));
+        if (!RoleConstants.RESTAURANT_MANAGER.equals(manager.getRole())) {
+            throw new RuntimeException("User is not a restaurant manager");
+        }
+        manager.setActive(true);
+        return toManagerResponse(userRepository.save(manager));
+    }
+
     private RestaurantResponse toRestaurantResponse(Restaurant restaurant) {
         String managerName = null;
         String managerId = null;
@@ -297,7 +321,8 @@ public class AdminController {
                 user.getFirstname(),
                 user.getLastname(),
                 user.getEmail(),
-                user.getRole()
+                user.getRole(),
+                user.isActive()
         );
     }
 }
