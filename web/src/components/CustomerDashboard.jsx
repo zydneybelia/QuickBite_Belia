@@ -3,12 +3,22 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const API_URL = "http://localhost:8086/api";
+const CART_STORAGE_KEY = "quickbite_customer_cart";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("restaurants");
   const [restaurants, setRestaurants] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [cart, setCart] = useState([]);
+  const [allMenuItems, setAllMenuItems] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (err) {
+      console.error("Failed to load saved cart", err);
+      return [];
+    }
+  });
   const [orders, setOrders] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -27,19 +37,43 @@ export default function Dashboard() {
     headers: { Authorization: `Bearer ${token}` },
   };
 
+  const getCurrentUserId = () => {
+    if (!user) return null;
+    return user.userId || user.id || user.sub || null;
+  };
+
+  const fetchOrders = async (userId) => {
+    try {
+      const endpoint = userId ? `${API_URL}/orders/user/${userId}` : `${API_URL}/orders/me`;
+      const res = await axios.get(endpoint, authHeaders);
+      console.log('fetchOrders response:', res.data);
+      setOrders(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to fetch orders", err);
+      setOrders([]);
+    }
+  };
+
   useEffect(() => {
     if (!token) { navigate("/login"); return; }
     fetchRestaurants();
-    fetchOrders();
+    fetchAllMenuItems();
     fetchCart();
     // Decode basic user info from token
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setUser(payload);
-
-      payload.role
-    } catch {}
+      const userId = payload.userId || payload.id || payload.sub || null;
+      fetchOrders(userId);
+    } catch {
+      fetchOrders();
+    }
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "orders") return;
+    fetchOrders(getCurrentUserId());
+  }, [activeTab]);
 
   const fetchRestaurants = async () => {
     setLoading(true);
@@ -73,30 +107,63 @@ export default function Dashboard() {
     }
   };
 
+  const fetchAllMenuItems = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/customer/restaurants/menu`, authHeaders);
+      setAllMenuItems(res.data || []);
+      if (!selectedRestaurant) {
+        setMenuItems(res.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch all menu items", err);
+      setAllMenuItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchCart = async () => {
     try {
-      const res = await axios.get(`${API_URL}/carts`, authHeaders);
-      setCart(res.data?.cartItems || []);
+      const savedCart = localStorage.getItem(CART_STORAGE_KEY);
+      if (savedCart) {
+        setCart(JSON.parse(savedCart));
+        return;
+      }
+    } catch (err) {
+      console.error("Failed to parse saved cart", err);
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const userId = payload.userId || payload.id || payload.sub || null;
+      const endpoint = userId ? `${API_URL}/carts/user/${userId}` : `${API_URL}/carts/me`;
+      const res = await axios.get(endpoint, authHeaders);
+      setCart(res.data?.cartItems || res.data || []);
     } catch (err) {
       console.error("Failed to fetch cart", err);
     }
   };
 
-  const fetchOrders = async () => {
+  useEffect(() => {
     try {
-      const res = await axios.get(`${API_URL}/orders`, authHeaders);
-      console.log('fetchOrders response:', res.data);
-      setOrders(res.data);
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
     } catch (err) {
-      console.error("Failed to fetch orders", err);
+      console.error("Failed to persist cart", err);
     }
-  };
+  }, [cart]);
 
   const handleSelectRestaurant = (restaurant) => {
     setSelectedRestaurant(restaurant);
     fetchMenuItems(restaurant.id);
     setActiveTab("menu");
   };
+
+  useEffect(() => {
+    if (activeTab === "menu" && !selectedRestaurant) {
+      setMenuItems(allMenuItems);
+    }
+  }, [activeTab, selectedRestaurant, allMenuItems]);
 
   const handleAddToCart = (item) => {
     const existing = cart.find((c) => c.id === item.id);
@@ -149,20 +216,24 @@ export default function Dashboard() {
 
   const handleConfirmPay = async () => {
     try {
+      const userId = getCurrentUserId();
+      if (!userId) {
+        console.error("Unable to place order: missing user ID");
+        return;
+      }
+
       await axios.post(`${API_URL}/orders`, {
-        totalAmount: checkoutTotal,
-        status: "PLACED",
+        userId,
         items: visibleCheckoutItems.map((item) => ({
-          id: item.id,
-          name: item.name,
+          menuItemId: item.id,
           quantity: item.quantity,
-          price: item.price,
         })),
-        restaurantId: selectedRestaurant?.id,
       }, authHeaders);
+
       setCart([]);
+      localStorage.removeItem(CART_STORAGE_KEY);
       // Refresh orders for the user and navigate to Orders tab so user sees the new order
-      await fetchOrders();
+      await fetchOrders(userId);
       setActiveTab("orders");
       setOrderPlacedMsg("Your order has been placed.");
       setShowOrderPlaced(true);

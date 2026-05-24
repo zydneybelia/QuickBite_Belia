@@ -13,37 +13,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
 
-  // Modals
-  const [showCreateRestaurant, setShowCreateRestaurant] = useState(false);
-  const [showCreateManager, setShowCreateManager] = useState(false);
-  const [showOnboardRestaurant, setShowOnboardRestaurant] = useState(false);
-  const [showAssignManager, setShowAssignManager] = useState(false);
-  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-
-  // Forms
-  const [restaurantForm, setRestaurantForm] = useState({ name: "", description: "", location: "", contactNumber: "", cuisineType: "", status: "active" });
-  const [managerForm, setManagerForm] = useState({ firstname: "", lastname: "", email: "", password: "" });
-  const [onboardForm, setOnboardForm] = useState({
-    name: "",
-    description: "",
-    location: "",
-    contactNumber: "",
-    cuisineType: "",
-    status: "active",
-    managerFirstname: "",
-    managerLastname: "",
-    managerEmail: "",
-    managerPassword: "",
-  });
-
-  // FIX 1: Only use existing manager during onboarding
-  const useExistingManager = true;
-  const [selectedExistingManagerId, setSelectedExistingManagerId] = useState("");
-  const [onboardError, setOnboardError] = useState("");
-  const [assignManagerId, setAssignManagerId] = useState("");
-  const [formLoading, setFormLoading] = useState(false);
-
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
@@ -57,20 +26,6 @@ export default function AdminDashboard() {
     loadAll();
   }, []);
 
-  useEffect(() => {
-    if (!showOnboardRestaurant) return;
-    const fetchManagers = async () => {
-      try {
-        const res = await axios.get(`${API_URL}/users/managers`, authHeaders);
-        const managersData = Array.isArray(res.data) ? res.data : res.data?.managers || [];
-        setManagers(managersData);
-      } catch (err) {
-        console.error("Failed to fetch managers", err);
-      }
-    };
-    fetchManagers();
-  }, [showOnboardRestaurant]);
-
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -81,167 +36,15 @@ export default function AdminDashboard() {
         axios.get(`${API_URL}/admin/managers`, authHeaders),
       ]);
 
-      const usersData = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.users || [];
-      const restaurantsData = Array.isArray(restaurantsRes.data) ? restaurantsRes.data : restaurantsRes.data?.restaurants || [];
-      const ordersData = Array.isArray(ordersRes.data) ? ordersRes.data : ordersRes.data?.orders || [];
-      const managersData = Array.isArray(managersRes.data) ? managersRes.data : managersRes.data?.managers || [];
-
-      setUsers(usersData);
-      setRestaurants(restaurantsData);
-      setOrders(ordersData);
-      setManagers(managersData);
+      setUsers(usersRes.data);
+      setRestaurants(restaurantsRes.data);
+      setOrders(ordersRes.data);
+      setManagers(managersRes.data);
     } catch (err) {
       console.error("Failed to load admin data", err);
-      setUsers([]);
-      setRestaurants([]);
-      setOrders([]);
-      setManagers([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCreateRestaurant = async (e) => {
-    e.preventDefault();
-    setFormLoading(true);
-    try {
-      const res = await axios.post(`${API_URL}/admin/restaurants`, restaurantForm, authHeaders);
-      setRestaurants([...restaurants, res.data]);
-      setShowCreateRestaurant(false);
-      setRestaurantForm({ name: "", description: "", location: "", contactNumber: "", cuisineType: "", status: "active" });
-      alert("Restaurant created successfully!");
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to create restaurant");
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleCreateManager = async (e) => {
-    e.preventDefault();
-    setFormLoading(true);
-    try {
-      const res = await axios.post(`${API_URL}/admin/managers`, managerForm, authHeaders);
-      setManagers([...managers, res.data]);
-      setShowCreateManager(false);
-      setManagerForm({ firstname: "", lastname: "", email: "", password: "" });
-      alert("Manager created successfully!");
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to create manager");
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const validateOnboardForm = () => {
-    const requiredFields = [
-      { label: "Restaurant name", value: onboardForm.name },
-      { label: "Restaurant location", value: onboardForm.location },
-      { label: "Contact number", value: onboardForm.contactNumber },
-      { label: "Cuisine type", value: onboardForm.cuisineType },
-    ];
-
-    if (!selectedExistingManagerId) {
-      return "Please select an existing manager to assign.";
-    }
-
-    for (const field of requiredFields) {
-      if (!field.value || !field.value.toString().trim()) {
-        return `${field.label} is required.`;
-      }
-    }
-
-    return "";
-  };
-
-  // FIX 2: Remove duplicate keys in reset
-  const resetOnboardForm = () => {
-    setOnboardForm({
-      name: "",
-      description: "",
-      location: "",
-      contactNumber: "",
-      cuisineType: "",
-      status: "active",
-      managerFirstname: "",
-      managerLastname: "",
-      managerEmail: "",
-      managerPassword: "",
-    });
-    setSelectedExistingManagerId("");
-    setOnboardError("");
-  };
-
-  const handleOnboardRestaurant = async (e) => {
-    e.preventDefault();
-    setOnboardError("");
-    const error = validateOnboardForm();
-    if (error) {
-      setOnboardError(error);
-      return;
-    }
-
-    const requestBody = {
-      ...onboardForm,
-      existingManagerId: selectedExistingManagerId,
-    };
-
-    setFormLoading(true);
-    try {
-      const res = await axios.post(`${API_URL}/admin/onboard-restaurant`, requestBody, authHeaders);
-      setRestaurants([...restaurants, res.data.restaurant]);
-      if (!useExistingManager && res.data.manager) {
-        setManagers([...managers, res.data.manager]);
-      }
-      setShowOnboardRestaurant(false);
-      resetOnboardForm();
-      alert("Restaurant and manager onboarded successfully!");
-    } catch (err) {
-      console.error("Onboarding error", err);
-      const status = err.response?.status;
-      const responseData = err.response?.data;
-      const errorMessage = responseData?.message || responseData?.error || err.message || JSON.stringify(responseData) || "Failed to onboard restaurant and manager";
-      if (status === 401 || status === 403) {
-        localStorage.removeItem("token");
-        alert("You are not authorized. Please log in again as an admin.");
-        navigate("/login");
-        return;
-      }
-      setOnboardError(errorMessage);
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleAssignManager = async (e) => {
-    e.preventDefault();
-    if (!selectedRestaurant || !assignManagerId) return;
-    setFormLoading(true);
-    try {
-      const res = await axios.put(
-        `${API_URL}/admin/restaurants/${selectedRestaurant.id}/assign/${assignManagerId}`,
-        {}, authHeaders
-      );
-      const restaurantsList = Array.isArray(restaurants) ? restaurants : [];
-      setRestaurants(restaurantsList.map((r) => r.id === res.data.id ? res.data : r));
-      setShowAssignManager(false);
-      setAssignManagerId("");
-      setSelectedRestaurant(null);
-      alert("Manager assigned successfully!");
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to assign manager");
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleDeleteUser = async (id) => {
-    try {
-      await axios.delete(`${API_URL}/users/${id}`, authHeaders);
-      const usersList = Array.isArray(users) ? users : [];
-      setUsers(usersList.filter((u) => u.id !== id));
-      setConfirmDelete(null);
-    } catch { alert("Failed to delete user"); }
   };
 
   const handleLogout = () => {
@@ -270,10 +73,237 @@ export default function AdminDashboard() {
     managers: managersList.length,
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmDeleteManager, setConfirmDeleteManager] = useState(null);
+  const [showOnboardRestaurant, setShowOnboardRestaurant] = useState(false);
+  const [showCreateRestaurant, setShowCreateRestaurant] = useState(false);
+  const [showEditRestaurant, setShowEditRestaurant] = useState(false);
+  const [showCreateManager, setShowCreateManager] = useState(false);
+  const [showUpdateManager, setShowUpdateManager] = useState(false);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [selectedManager, setSelectedManager] = useState(null);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
+  const [selectedExistingManagerId, setSelectedExistingManagerId] = useState("");
+  const [onboardForm, setOnboardForm] = useState({
+    name: "",
+    description: "",
+    location: "",
+    contactNumber: "",
+    cuisineType: "",
+    status: "active",
+  });
+  const [restaurantForm, setRestaurantForm] = useState({
+    name: "",
+    description: "",
+    location: "",
+    contactNumber: "",
+    cuisineType: "",
+    status: "active",
+  });
+  const [editRestaurantForm, setEditRestaurantForm] = useState({
+    name: "",
+    description: "",
+    location: "",
+    contactNumber: "",
+    cuisineType: "",
+    status: "active",
+  });
+  const [managerForm, setManagerForm] = useState({
+    firstname: "",
+    lastname: "",
+    email: "",
+    password: "",
+  });
+  const [onboardError, setOnboardError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+
   const inputStyle = {
-    height: "40px", padding: "0 12px", borderRadius: "8px",
-    border: "1.5px solid #e0e0e0", fontSize: "14px", color: "#1a1a1a",
-    background: "#fafafa", outline: "none", width: "100%", boxSizing: "border-box",
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: "10px",
+    border: "1px solid #e5e7eb",
+    fontSize: "14px",
+    color: "#111",
+    background: "#fff",
+  };
+
+  const resetOnboardForm = () => {
+    setOnboardForm({
+      name: "",
+      description: "",
+      location: "",
+      contactNumber: "",
+      cuisineType: "",
+      status: "active",
+    });
+    setSelectedExistingManagerId("");
+    setOnboardError("");
+  };
+
+  const resetRestaurantForm = () => {
+    setRestaurantForm({
+      name: "",
+      description: "",
+      location: "",
+      contactNumber: "",
+      cuisineType: "",
+      status: "active",
+    });
+    setEditRestaurantForm({
+      name: "",
+      description: "",
+      location: "",
+      contactNumber: "",
+      cuisineType: "",
+      status: "active",
+    });
+  };
+
+  const openEditRestaurant = (restaurant) => {
+    setSelectedRestaurant(restaurant);
+    setEditRestaurantForm({
+      name: restaurant.name || "",
+      description: restaurant.description || "",
+      location: restaurant.location || "",
+      contactNumber: restaurant.contactNumber || "",
+      cuisineType: restaurant.cuisineType || "",
+      status: restaurant.status || "active",
+    });
+    setShowEditRestaurant(true);
+  };
+
+  const openAssignManager = (manager) => {
+    setSelectedManager(manager);
+    setSelectedRestaurantId("");
+    setShowUpdateManager(true);
+  };
+
+  const handleUpdateRestaurant = async (e) => {
+    e.preventDefault();
+    if (!selectedRestaurant) return;
+    setFormLoading(true);
+    try {
+      await axios.put(
+        `${API_URL}/admin/restaurants/${selectedRestaurant.id}`,
+        editRestaurantForm,
+        authHeaders
+      );
+      await loadAll();
+      setShowEditRestaurant(false);
+      setSelectedRestaurant(null);
+    } catch (err) {
+      console.error("Failed to update restaurant", err);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleToggleRestaurantStatus = async (restaurantId, currentStatus) => {
+    setFormLoading(true);
+    try {
+      const endpoint = currentStatus === "active" ? "deactivate" : "activate";
+      await axios.put(
+        `${API_URL}/admin/restaurants/${restaurantId}/${endpoint}`,
+        {},
+        authHeaders
+      );
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to toggle restaurant status", err);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleCreateRestaurant = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    try {
+      await axios.post(`${API_URL}/admin/restaurants`, restaurantForm, authHeaders);
+      resetRestaurantForm();
+      setShowCreateRestaurant(false);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to create restaurant", err);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleOnboardRestaurant = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    try {
+      await axios.post(
+        `${API_URL}/admin/onboard-restaurant`,
+        { ...onboardForm, existingManagerId: selectedExistingManagerId },
+        authHeaders
+      );
+      resetOnboardForm();
+      setShowOnboardRestaurant(false);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to onboard restaurant", err);
+      setOnboardError(
+        err?.response?.data?.message || err?.message || "Unable to onboard restaurant."
+      );
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleCreateManager = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    try {
+      await axios.post(`${API_URL}/admin/managers`, managerForm, authHeaders);
+      setManagerForm({ firstname: "", lastname: "", email: "", password: "" });
+      setShowCreateManager(false);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to create manager", err);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    try {
+      await axios.delete(`${API_URL}/users/${userId}`, authHeaders);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to delete user", err);
+    }
+  };
+
+  const handleDeleteManager = async (managerId) => {
+    try {
+      await axios.delete(`${API_URL}/users/${managerId}`, authHeaders);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to delete manager", err);
+    }
+  };
+
+  const handleAssignManager = async (e) => {
+    e.preventDefault();
+    if (!selectedManager || !selectedRestaurantId) return;
+    setFormLoading(true);
+    try {
+      await axios.put(
+        `${API_URL}/admin/restaurants/${selectedRestaurantId}/assign/${selectedManager.id}`,
+        {},
+        authHeaders
+      );
+      setSelectedRestaurantId("");
+      setShowUpdateManager(false);
+      setSelectedManager(null);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to assign manager", err);
+    } finally {
+      setFormLoading(false);
+    }
   };
 
   return (
@@ -288,6 +318,19 @@ export default function AdminDashboard() {
             <div style={styles.modalBtns}>
               <button onClick={() => setConfirmDelete(null)} style={styles.cancelBtn}>Cancel</button>
               <button onClick={() => handleDeleteUser(confirmDelete.id)} style={styles.redBtn}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteManager && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>Delete Manager</h3>
+            <p style={styles.modalText}>Are you sure you want to delete manager <strong>{confirmDeleteManager.managerName || "this manager"}</strong> from <strong>{confirmDeleteManager.restaurantName || "the restaurant"}</strong>? This will delete their account and unassign them.</p>
+            <div style={styles.modalBtns}>
+              <button onClick={() => setConfirmDeleteManager(null)} style={styles.cancelBtn}>Cancel</button>
+              <button onClick={() => handleDeleteManager(confirmDeleteManager.id)} style={styles.redBtn}>Delete</button>
             </div>
           </div>
         </div>
@@ -423,6 +466,54 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {showEditRestaurant && selectedRestaurant && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>Update Restaurant</h3>
+            <form onSubmit={handleUpdateRestaurant} style={styles.form}>
+              {[
+                { label: "Name", key: "name", placeholder: "e.g. Jollibee Cebu" },
+                { label: "Description", key: "description", placeholder: "Short description" },
+                { label: "Location", key: "location", placeholder: "e.g. IT Park, Cebu City" },
+                { label: "Contact Number", key: "contactNumber", placeholder: "e.g. +63 912 345 6789" },
+                { label: "Cuisine Type", key: "cuisineType", placeholder: "e.g. Filipino, Fast Food" },
+              ].map(({ label, key, placeholder }) => (
+                <div key={key} style={styles.fieldGroup}>
+                  <label htmlFor={`edit-restaurant-${key}`} style={styles.label}>{label}</label>
+                  <input
+                    id={`edit-restaurant-${key}`}
+                    name={key}
+                    value={editRestaurantForm[key]}
+                    onChange={(e) => setEditRestaurantForm({ ...editRestaurantForm, [key]: e.target.value })}
+                    placeholder={placeholder}
+                    required
+                    autoComplete="off"
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Status</label>
+                <select
+                  value={editRestaurantForm.status}
+                  onChange={(e) => setEditRestaurantForm({ ...editRestaurantForm, status: e.target.value })}
+                  style={{ ...inputStyle, cursor: "pointer" }}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div style={styles.modalBtns}>
+                <button type="button" onClick={() => { setShowEditRestaurant(false); setSelectedRestaurant(null); }} style={styles.cancelBtn}>Cancel</button>
+                <button type="submit" disabled={formLoading} style={styles.orangeBtn}>
+                  {formLoading ? "Saving..." : "Update Restaurant"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Create Manager Modal */}
       {showCreateManager && (
         <div style={styles.overlay}>
@@ -458,33 +549,33 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Assign Manager Modal */}
-      {showAssignManager && selectedRestaurant && (
+      {/* Assign Restaurant Modal */}
+      {showUpdateManager && selectedManager && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>Assign Manager</h3>
-            <p style={styles.modalText}>Assigning manager to: <strong>{selectedRestaurant.name}</strong></p>
+            <h3 style={styles.modalTitle}>Assign Restaurant</h3>
+            <p style={styles.modalText}>Assigning restaurant for: <strong>{selectedManager.firstname} {selectedManager.lastname}</strong></p>
             <form onSubmit={handleAssignManager} style={styles.form}>
               <div style={styles.fieldGroup}>
-                <label style={styles.label}>Select Manager</label>
+                <label style={styles.label}>Select Restaurant</label>
                 <select
-                  value={assignManagerId}
-                  onChange={(e) => setAssignManagerId(e.target.value)}
+                  value={selectedRestaurantId}
+                  onChange={(e) => setSelectedRestaurantId(e.target.value)}
                   required
                   style={{ ...inputStyle, cursor: "pointer" }}
                 >
-                  <option value="">-- Select a manager --</option>
-                  {managersList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.firstname} {m.lastname} ({m.email})
+                  <option value="">-- Select a restaurant --</option>
+                  {restaurantsList.map((restaurant) => (
+                    <option key={restaurant.id} value={restaurant.id}>
+                      {restaurant.name || restaurant.location || restaurant.id}
                     </option>
                   ))}
                 </select>
               </div>
               <div style={styles.modalBtns}>
-                <button type="button" onClick={() => { setShowAssignManager(false); setSelectedRestaurant(null); }} style={styles.cancelBtn}>Cancel</button>
+                <button type="button" onClick={() => { setShowUpdateManager(false); setSelectedManager(null); }} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={formLoading} style={styles.orangeBtn}>
-                  {formLoading ? "Assigning..." : "Assign Manager"}
+                  {formLoading ? "Updating..." : "Update Assignment"}
                 </button>
               </div>
             </form>
@@ -644,11 +735,11 @@ export default function AdminDashboard() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>{["Restaurant", "Location", "Contact", "Cuisine", "Status", "Assigned Manager", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                <tr>{["Restaurant", "Location", "Contact", "Cuisine", "Status", "Manager ID", "Assigned Manager", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {restaurantsList.length === 0 ? (
-                  <tr><td colSpan={7} style={styles.emptyCell}>No restaurants yet. Click "+ Onboard Restaurant" to add one.</td></tr>
+                  <tr><td colSpan={8} style={styles.emptyCell}>No restaurants yet. Click "+ Onboard Restaurant" to add one.</td></tr>
                 ) : restaurantsList.map((r) => (
                   <tr key={r.id} style={styles.tr}>
                     <td style={styles.td}>
@@ -668,11 +759,23 @@ export default function AdminDashboard() {
                         {r.status}
                       </span>
                     </td>
+                    <td style={styles.td}>{r.managerId || "—"}</td>
                     <td style={styles.td}>{r.managerName || "Unassigned"}</td>
                     <td style={styles.td}>
-                      <button onClick={() => { setSelectedRestaurant(r); setShowAssignManager(true); }} style={styles.assignBtn}>
-                        Assign Manager
-                      </button>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          onClick={() => openEditRestaurant(r)}
+                          style={{ ...styles.assignBtn, background: "#fff7ed", color: "#ea580c", border: "1px solid #ffd8c2" }}
+                        >
+                          Update
+                        </button>
+                        <button
+                          onClick={() => handleToggleRestaurantStatus(r.id, r.status)}
+                          style={r.status === "active" ? styles.deleteRowBtn : { ...styles.assignBtn, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
+                        >
+                          {r.status === "active" ? "Deactivate" : "Activate"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -686,25 +789,45 @@ export default function AdminDashboard() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>{["Name", "Email", "Role"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                <tr>{["Name", "Email", "Role", "Assigned Restaurant", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {managersList.length === 0 ? (
-                  <tr><td colSpan={3} style={styles.emptyCell}>No managers yet. Click "+New Manager" to add one.</td></tr>
-                ) : managersList.map((m) => (
-                  <tr key={m.id} style={styles.tr}>
-                    <td style={styles.td}>
-                      <div style={styles.nameCell}>
-                        <div style={{ ...styles.tableAvatar, background: "#eff6ff", color: "#2563eb" }}>{m.firstname?.charAt(0)?.toUpperCase()}</div>
-                        <span>{m.firstname} {m.lastname}</span>
-                      </div>
-                    </td>
-                    <td style={styles.td}>{m.email}</td>
-                    <td style={styles.td}>
-                      <span style={{ ...styles.pill, background: "#eff6ff", color: "#2563eb" }}>{m.role}</span>
-                    </td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={5} style={styles.emptyCell}>No managers yet. Click "+New Manager" to add one.</td></tr>
+                ) : managersList.map((m) => {
+                  const assignedRestaurant = restaurantsList.find((restaurant) => restaurant.managerId === m.id);
+                  return (
+                    <tr key={m.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        <div style={styles.nameCell}>
+                          <div style={{ ...styles.tableAvatar, background: "#eff6ff", color: "#2563eb" }}>{m.firstname?.charAt(0)?.toUpperCase()}</div>
+                          <span>{m.firstname} {m.lastname}</span>
+                        </div>
+                      </td>
+                      <td style={styles.td}>{m.email}</td>
+                      <td style={styles.td}>
+                        <span style={{ ...styles.pill, background: "#eff6ff", color: "#2563eb" }}>{m.role}</span>
+                      </td>
+                      <td style={styles.td}>{assignedRestaurant?.name || "Unassigned"}</td>
+                      <td style={styles.td}>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            onClick={() => openAssignManager(m)}
+                            style={{ ...styles.assignBtn, background: "#fff7ed", color: "#ea580c", border: "1px solid #ffd8c2" }}
+                          >
+                            Update
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteManager({ id: m.id, managerName: m.firstname + " " + m.lastname, restaurantName: assignedRestaurant?.name || "N/A" })}
+                            style={styles.deleteRowBtn}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

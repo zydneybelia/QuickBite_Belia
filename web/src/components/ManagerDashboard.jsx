@@ -10,11 +10,14 @@ export default function ManagerDashboard() {
   const { restaurantId } = useParams();
   const [orders, setOrders] = useState([]);
   const [restaurant, setRestaurant] = useState(null);
+  const [menuItems, setMenuItems] = useState([]);
   const [sales, setSales] = useState({ totalSales: 0.0, orderCount: 0, menuItemCount: 0 });
   const [orderStats, setOrderStats] = useState({ totalOrdersCount: 0, placedCount: 0, preparingCount: 0, deliveredCount: 0 });
+  const [activeTab, setActiveTab] = useState("orders");
   const [showAddMenuModal, setShowAddMenuModal] = useState(false);
   const [newMenuItem, setNewMenuItem] = useState({ name: "", description: "", price: "", category: "Main", availability: true });
   const [addingMenuItem, setAddingMenuItem] = useState(false);
+  const [menuLoading, setMenuLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -40,6 +43,7 @@ export default function ManagerDashboard() {
     fetchOrders();
     fetchSales();
     fetchOrderStats();
+    fetchMenuItems();
   }, [restaurantId]);
 
   const fetchAssignedRestaurant = async () => {
@@ -101,6 +105,19 @@ export default function ManagerDashboard() {
     }
   };
 
+  const fetchMenuItems = async () => {
+    setMenuLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/manager/restaurants/${restaurantId}/menu`, authHeaders);
+      setMenuItems(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch menu items", err);
+      setMenuItems([]);
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+
   const handleAddMenuItem = async () => {
     if (!restaurantId || !newMenuItem.name.trim()) {
       alert("Please enter a menu item name");
@@ -116,7 +133,6 @@ export default function ManagerDashboard() {
         availability: newMenuItem.availability,
       }, authHeaders);
       
-      // ✅ SUCCESS FEEDBACK
       alert("✓ Menu Item Added Successfully!");
       
       setShowAddMenuModal(false);
@@ -124,13 +140,12 @@ export default function ManagerDashboard() {
       fetchOrders();
       fetchOrderStats();
       fetchSales();
+      fetchMenuItems();
     } catch (err) {
-      // ✅ DETAILED ERROR LOGGING
       const status = err.response?.status;
       const errorMsg = err.response?.data?.message || err.response?.data || err.message;
       console.error(`[${status}] Failed to add menu item:`, errorMsg);
       
-      // Provide user-friendly error messages
       if (status === 401) {
         alert("Authentication failed. Please log in again.");
       } else if (status === 403) {
@@ -204,25 +219,31 @@ export default function ManagerDashboard() {
         <div style={styles.roleTag}>Restaurant Manager</div>
 
         <nav style={styles.nav}>
-          <div style={styles.navBtn}>
+          <div
+            onClick={() => setActiveTab("orders")}
+            style={{
+              ...styles.navBtn,
+              background: activeTab === "orders" ? "#fff4f0" : "transparent",
+              color: activeTab === "orders" ? "#FF6B35" : "#555",
+              cursor: "pointer",
+            }}
+          >
             <span style={{ fontSize: "18px" }}>📦</span>
             <span>Orders</span>
           </div>
+          <div
+            onClick={() => setActiveTab("menus")}
+            style={{
+              ...styles.navBtn,
+              background: activeTab === "menus" ? "#fff4f0" : "transparent",
+              color: activeTab === "menus" ? "#FF6B35" : "#555",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: "18px" }}>🍽️</span>
+            <span>Menus</span>
+          </div>
         </nav>
-
-        {/* Stats */}
-        <div style={styles.statCards}>
-          {[
-            { label: "Placed", value: countByStatus("PLACED"), color: "#ea580c", bg: "#fff7ed" },
-            { label: "Preparing", value: countByStatus("PREPARING"), color: "#ca8a04", bg: "#fef9c3" },
-            { label: "Delivered", value: countByStatus("DELIVERED"), color: "#16a34a", bg: "#f0fdf4" },
-          ].map((s) => (
-            <div key={s.label} style={{ ...styles.statCard, background: s.bg }}>
-              <span style={{ fontSize: "20px", fontWeight: "700", color: s.color }}>{s.value}</span>
-              <span style={{ fontSize: "11px", color: s.color }}>{s.label}</span>
-            </div>
-          ))}
-        </div>
 
         <div style={styles.sidebarFooter}>
           <div style={styles.userInfo}>
@@ -244,108 +265,102 @@ export default function ManagerDashboard() {
       <main style={styles.main}>
         <div style={styles.header}>
           <div>
-            <h1 style={styles.pageTitle}>Order Management</h1>
+            <h1 style={styles.pageTitle}>{activeTab === "orders" ? "Order Management" : "Menu Management"}</h1>
             <p style={styles.restaurantName}>{restaurantName}</p>
-            <p style={styles.pageSubtitle}>{orders.length} total orders</p>
+            <p style={styles.pageSubtitle}>
+              {activeTab === "orders"
+                ? `${orders.length} total orders`
+                : `${menuItems.length} menu items`}
+            </p>
           </div>
           <div style={styles.headerActions}>
-            <button onClick={() => setShowAddMenuModal(true)} style={styles.primaryBtn}>
-              + Add Menu Item
-            </button>
-            <button onClick={fetchOrders} style={styles.refreshBtn}>
+            {activeTab === "menus" && (
+              <button onClick={() => setShowAddMenuModal(true)} style={styles.primaryBtn}>
+                + Add Menu Item
+              </button>
+            )}
+            <button
+              onClick={() => (activeTab === "orders" ? fetchOrders() : fetchMenuItems())}
+              style={styles.refreshBtn}
+            >
               ↻ Refresh
             </button>
           </div>
         </div>
 
-        <div style={styles.statsGrid}>
-          {[
-            { label: "Total Orders", value: orderStats.totalOrdersCount, color: "#1f2937" },
-            { label: "Placed", value: orderStats.placedCount, color: "#ea580c" },
-            { label: "Preparing", value: orderStats.preparingCount, color: "#ca8a04" },
-            { label: "Delivered", value: orderStats.deliveredCount, color: "#16a34a" },
-          ].map((stat) => (
-            <div key={stat.label} style={styles.statsCard}>
-              <span style={styles.statsLabel}>{stat.label}</span>
-              <span style={{ ...styles.statsValue, color: stat.color }}>{stat.value}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Filter tabs */}
-        <div style={styles.filterRow}>
-          {["ALL", ...STATUS_OPTIONS].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              style={{
-                ...styles.filterBtn,
-                background: filterStatus === s ? "#FF6B35" : "white",
-                color: filterStatus === s ? "white" : "#555",
-                borderColor: filterStatus === s ? "#FF6B35" : "#ececec",
-              }}
-            >
-              {s} {s !== "ALL" && `(${countByStatus(s)})`}
-            </button>
-          ))}
-        </div>
-
-        {showAddMenuModal && (
-          <div style={styles.modalOverlay}>
-            <div style={styles.modalContent}>
-              <h2 style={styles.modalTitle}>Add Menu Item</h2>
-              <div style={styles.modalBody}>
-                <label style={styles.modalLabel}>Name</label>
-                <input
-                  type="text"
-                  value={newMenuItem.name}
-                  onChange={(e) => setNewMenuItem({ ...newMenuItem, name: e.target.value })}
-                  style={styles.modalInput}
-                  placeholder="Item name"
-                />
-                <label style={styles.modalLabel}>Description</label>
-                <textarea
-                  value={newMenuItem.description}
-                  onChange={(e) => setNewMenuItem({ ...newMenuItem, description: e.target.value })}
-                  style={styles.modalTextarea}
-                  placeholder="Item description"
-                />
-                <div style={styles.modalRow}>
-                  <div style={styles.modalField}>
-                    <label style={styles.modalLabel}>Price</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={newMenuItem.price}
-                      onChange={(e) => setNewMenuItem({ ...newMenuItem, price: e.target.value })}
-                      style={styles.modalInput}
-                      placeholder="₱0.00"
-                    />
-                  </div>
-                  <div style={styles.modalField}>
-                    <label style={styles.modalLabel}>Category</label>
-                    <input
-                      type="text"
-                      value={newMenuItem.category}
-                      onChange={(e) => setNewMenuItem({ ...newMenuItem, category: e.target.value })}
-                      style={styles.modalInput}
-                      placeholder="Main, Dessert, Drink"
-                    />
-                  </div>
+      {showAddMenuModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <h2 style={styles.modalTitle}>Add Menu Item</h2>
+            <div style={styles.modalBody}>
+              <label style={styles.modalLabel}>Name</label>
+              <input
+                type="text"
+                value={newMenuItem.name}
+                onChange={(e) => setNewMenuItem({ ...newMenuItem, name: e.target.value })}
+                style={styles.modalInput}
+                placeholder="Item name"
+              />
+              <label style={styles.modalLabel}>Description</label>
+              <textarea
+                value={newMenuItem.description}
+                onChange={(e) => setNewMenuItem({ ...newMenuItem, description: e.target.value })}
+                style={styles.modalTextarea}
+                placeholder="Item description"
+              />
+              <div style={styles.modalRow}>
+                <div style={styles.modalField}>
+                  <label style={styles.modalLabel}>Price</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newMenuItem.price}
+                    onChange={(e) => setNewMenuItem({ ...newMenuItem, price: e.target.value })}
+                    style={styles.modalInput}
+                    placeholder="₱0.00"
+                  />
                 </div>
-                <div style={styles.modalActions}>
-                  <button onClick={closeAddMenuModal} style={styles.secondaryBtn}>
-                    Cancel
-                  </button>
-                  <button onClick={handleAddMenuItem} style={styles.primaryBtn} disabled={addingMenuItem}>
-                    {addingMenuItem ? "Adding…" : "Save Item"}
-                  </button>
+                <div style={styles.modalField}>
+                  <label style={styles.modalLabel}>Category</label>
+                  <input
+                    type="text"
+                    value={newMenuItem.category}
+                    onChange={(e) => setNewMenuItem({ ...newMenuItem, category: e.target.value })}
+                    style={styles.modalInput}
+                    placeholder="Main, Dessert, Drink"
+                  />
                 </div>
+              </div>
+              <div style={styles.modalActions}>
+                <button onClick={closeAddMenuModal} style={styles.secondaryBtn}>
+                  Cancel
+                </button>
+                <button onClick={handleAddMenuItem} style={styles.primaryBtn} disabled={addingMenuItem}>
+                  {addingMenuItem ? "Adding…" : "Save Item"}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {activeTab === "orders" && (
+        <>
+          <div style={styles.statsGrid}>
+            {[
+              { label: "Total Orders", value: orderStats.totalOrdersCount, color: "#1f2937" },
+              { label: "Placed", value: orderStats.placedCount, color: "#ea580c" },
+              { label: "Preparing", value: orderStats.preparingCount, color: "#ca8a04" },
+              { label: "Delivered", value: orderStats.deliveredCount, color: "#16a34a" },
+            ].map((stat) => (
+              <div key={stat.label} style={styles.statsCard}>
+                <span style={styles.statsLabel}>{stat.label}</span>
+                <span style={{ ...styles.statsValue, color: stat.color }}>{stat.value}</span>
+              </div>
+            ))}
+          </div>
+
 
         {loading ? (
           <div style={styles.loadingRow}>
@@ -396,27 +411,31 @@ export default function ManagerDashboard() {
                   <div style={styles.orderRight}>
                     <p style={styles.updateLabel}>Update Status</p>
                     <div style={styles.statusBtns}>
-                      {STATUS_OPTIONS.map((s) => {
-                        const sc2 = statusColor(s);
-                        const isActive = order.status === s;
-                        return (
-                          <button
-                            key={s}
-                            onClick={() => handleStatusUpdate(order.id, s)}
-                            disabled={isActive || updatingId === order.id}
-                            style={{
-                              ...styles.statusBtn,
-                              background: isActive ? sc2.bg : "white",
-                              color: isActive ? sc2.color : "#aaa",
-                              border: `1px solid ${isActive ? sc2.border : "#ececec"}`,
-                              fontWeight: isActive ? "700" : "400",
-                              cursor: isActive ? "default" : "pointer",
-                            }}
-                          >
-                            {updatingId === order.id && !isActive ? "..." : s}
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const currentIndex = STATUS_OPTIONS.indexOf(order.status);
+                        const nextStatuses = STATUS_OPTIONS.slice(currentIndex);
+                        return nextStatuses.map((s) => {
+                          const sc2 = statusColor(s);
+                          const isActive = order.status === s;
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => !isActive && handleStatusUpdate(order.id, s)}
+                              disabled={isActive || updatingId === order.id}
+                              style={{
+                                ...styles.statusBtn,
+                                background: isActive ? sc2.bg : "white",
+                                color: isActive ? sc2.color : "#aaa",
+                                border: `1px solid ${isActive ? sc2.border : "#ececec"}`,
+                                fontWeight: isActive ? "700" : "400",
+                                cursor: isActive ? "default" : "pointer",
+                              }}
+                            >
+                              {updatingId === order.id && !isActive ? "..." : s}
+                            </button>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -424,6 +443,42 @@ export default function ManagerDashboard() {
             })}
           </div>
         )}
+      </>
+      )}
+
+      {activeTab === "menus" && (
+        <>
+          {menuLoading ? (
+            <div style={styles.loadingRow}>
+              <div style={styles.spinner} />
+              <span style={{ color: "#aaa", fontSize: "14px" }}>Loading menus...</span>
+            </div>
+          ) : menuItems.length === 0 ? (
+            <div style={styles.empty}>
+              <span style={{ fontSize: "48px" }}>🍽️</span>
+              <p>No menu items available yet.</p>
+            </div>
+          ) : (
+            <div style={styles.menuList}>
+              {menuItems.map((item) => (
+                <div key={item.id} style={styles.menuCard}>
+                  <div>
+                    <div style={styles.menuCategory}>{item.category || "Menu Item"}</div>
+                    <h3 style={styles.menuName}>{item.name || "Untitled Item"}</h3>
+                    <p style={styles.menuDescription}>{item.description || "No description provided."}</p>
+                  </div>
+                  <div style={styles.menuFooter}>
+                    <span style={styles.menuPrice}>₱{item.price?.toFixed?.(2) ?? item.price ?? "0.00"}</span>
+                    <span style={{ color: item.availability ? "#16a34a" : "#dc2626", fontWeight: 700 }}>
+                      {item.availability ? "Available" : "Unavailable"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
       </main>
     </div>
   );
@@ -437,7 +492,7 @@ const styles = {
   logoText: { fontSize: "17px", fontWeight: "700", color: "#1a1a1a", letterSpacing: "-0.3px" },
   roleTag: { fontSize: "11px", fontWeight: "600", color: "#FF6B35", background: "#fff4f0", borderRadius: "6px", padding: "4px 10px", marginBottom: "1.25rem", display: "inline-block" },
   nav: { display: "flex", flexDirection: "column", gap: "4px", flex: 1 },
-  navBtn: { display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "#fff4f0", color: "#FF6B35", fontWeight: "600", fontSize: "14px" },
+  navBtn: { display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", transition: "all 0.15s" },
   statCards: { display: "flex", flexDirection: "column", gap: "8px", margin: "1rem 0" },
   statCard: { borderRadius: "10px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" },
   sidebarFooter: {
@@ -446,8 +501,8 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "10px",
-    marginTop: "auto",        // ✅ pushes footer to bottom
-    paddingBottom: "1rem",    // ✅ adds space at bottom
+    marginTop: "auto",
+    paddingBottom: "1rem",
   },
   userInfo: { display: "flex", alignItems: "center", gap: "10px" },
   avatar: { width: "36px", height: "36px", borderRadius: "50%", background: "#fff4f0", color: "#FF6B35", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "14px" },
@@ -462,6 +517,13 @@ const styles = {
   refreshBtn: { background: "white", border: "1px solid #ececec", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", color: "#555", cursor: "pointer" },
   filterRow: { display: "flex", gap: "8px", marginBottom: "1.25rem", flexWrap: "wrap" },
   filterBtn: { padding: "7px 14px", borderRadius: "8px", border: "1px solid", fontSize: "12px", fontWeight: "600", cursor: "pointer", transition: "all 0.15s" },
+  menuList: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" },
+  menuCard: { background: "white", borderRadius: "16px", border: "1px solid #ececec", padding: "18px", minHeight: "180px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "14px" },
+  menuCategory: { fontSize: "11px", fontWeight: "700", color: "#FF6B35", textTransform: "uppercase", letterSpacing: "0.12em" },
+  menuName: { fontSize: "18px", fontWeight: "700", margin: "0 0 6px" },
+  menuDescription: { fontSize: "13px", color: "#4b5563", lineHeight: "1.6", margin: 0 },
+  menuFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "12px" },
+  menuPrice: { fontSize: "16px", fontWeight: "700", color: "#111827" },
   loadingRow: { display: "flex", alignItems: "center", gap: "10px", padding: "2rem 0" },
   spinner: { width: "20px", height: "20px", border: "2px solid #f0f0f0", borderTop: "2px solid #FF6B35", borderRadius: "50%" },
   empty: { textAlign: "center", padding: "4rem 2rem", color: "#aaa", fontSize: "15px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" },
