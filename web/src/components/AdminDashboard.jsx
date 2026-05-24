@@ -71,6 +71,8 @@ export default function AdminDashboard() {
     total: usersList.length,
     customers: usersList.filter((u) => u.role === "CUSTOMER").length,
     managers: managersList.length,
+    active: usersList.filter((u) => u.active).length,
+    disabled: usersList.filter((u) => !u.active).length,
   };
 
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -210,6 +212,20 @@ export default function AdminDashboard() {
       await loadAll();
     } catch (err) {
       console.error("Failed to toggle restaurant status", err);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId, isActive) => {
+    setFormLoading(true);
+    try {
+      const endpoint = isActive ? "deactivate" : "activate";
+      await axios.put(`${API_URL}/admin/users/${userId}/${endpoint}`, {}, authHeaders);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to update user status", err);
+      alert("Unable to update user status. Please try again.");
     } finally {
       setFormLoading(false);
     }
@@ -699,39 +715,65 @@ export default function AdminDashboard() {
 
         {/* Users */}
         {activeTab === "users" && !loading && (
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>{["Name", "Email", "Role", "Created At", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {usersList.length === 0 ? (
-                  <tr><td colSpan={5} style={styles.emptyCell}>No users yet.</td></tr>
-                ) : usersList.map((u) => (
-                  <tr key={u.id} style={styles.tr}>
-                    <td style={styles.td}>
-                      <div style={styles.nameCell}>
-                        <div style={styles.tableAvatar}>{u.firstname?.charAt(0)?.toUpperCase()}</div>
-                        <span>{u.firstname} {u.lastname}</span>
-                      </div>
-                    </td>
-                    <td style={styles.td}>{u.email}</td>
-                    <td style={styles.td}>
-                      <span style={{
-                        ...styles.pill,
-                        background: u.role === "ADMIN" ? "#fdf2f8" : u.role?.includes("MANAGER") ? "#eff6ff" : "#f0fdf4",
-                        color: u.role === "ADMIN" ? "#9333ea" : u.role?.includes("MANAGER") ? "#2563eb" : "#16a34a",
-                      }}>{u.role}</span>
-                    </td>
-                    <td style={styles.td}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</td>
-                    <td style={styles.td}>
-                      <button onClick={() => setConfirmDelete({ id: u.id })} style={styles.deleteRowBtn}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div style={styles.statusGrid}>
+              <div style={styles.statusCard}>
+                <p style={styles.statusLabel}>Active users</p>
+                <p style={styles.statusValue}>{userStats.active}</p>
+              </div>
+              <div style={{ ...styles.statusCard, background: "#fef2f2", borderColor: "#fecaca" }}>
+                <p style={styles.statusLabel}>Disabled users</p>
+                <p style={styles.statusValue}>{userStats.disabled}</p>
+              </div>
+            </div>
+            <div style={styles.tableWrapper}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>{["Name", "Email", "Role", "Status", "Created At", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {usersList.length === 0 ? (
+                    <tr><td colSpan={6} style={styles.emptyCell}>No users yet.</td></tr>
+                  ) : usersList.map((u) => (
+                    <tr key={u.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        <div style={styles.nameCell}>
+                          <div style={styles.tableAvatar}>{u.firstname?.charAt(0)?.toUpperCase()}</div>
+                          <span>{u.firstname} {u.lastname}</span>
+                        </div>
+                      </td>
+                      <td style={styles.td}>{u.email}</td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.pill,
+                          background: u.role === "ADMIN" ? "#fdf2f8" : u.role?.includes("MANAGER") ? "#eff6ff" : "#f0fdf4",
+                          color: u.role === "ADMIN" ? "#9333ea" : u.role?.includes("MANAGER") ? "#2563eb" : "#16a34a",
+                        }}>{u.role}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.pill,
+                          background: u.active ? "#ecfdf5" : "#fef2f2",
+                          color: u.active ? "#16a34a" : "#dc2626",
+                        }}>
+                          {u.active ? "Active" : "Disabled"}
+                        </span>
+                      </td>
+                      <td style={styles.td}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</td>
+                      <td style={styles.td}>
+                        <button
+                          onClick={() => handleToggleUserStatus(u.id, u.active)}
+                          style={u.active ? styles.deleteRowBtn : { ...styles.assignBtn, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
+                        >
+                          {u.active ? "Disable" : "Activate"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {/* Restaurants */}
@@ -918,6 +960,10 @@ const styles = {
   loadingRow: { display: "flex", alignItems: "center", gap: "10px", padding: "2rem 0" },
   spinner: { width: "20px", height: "20px", border: "2px solid #f0f0f0", borderTop: "2px solid #FF6B35", borderRadius: "50%" },
   overviewGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" },
+  statusGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "16px" },
+  statusCard: { background: "white", borderRadius: "14px", border: "1px solid #e5e7eb", padding: "18px", display: "flex", flexDirection: "column", gap: "8px" },
+  statusLabel: { fontSize: "13px", color: "#888", margin: 0 },
+  statusValue: { fontSize: "28px", fontWeight: "700", color: "#1a1a1a", margin: 0 },
   statCard: { background: "white", borderRadius: "14px", border: "1px solid #ececec", padding: "20px", display: "flex", alignItems: "center", gap: "16px" },
   statIcon: { fontSize: "32px" },
   statLabel: { fontSize: "13px", color: "#aaa", margin: "0 0 4px" },
