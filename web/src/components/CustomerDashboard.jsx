@@ -3,7 +3,17 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const API_URL = "http://localhost:8086/api";
-const CART_STORAGE_KEY = "quickbite_customer_cart";
+const CART_STORAGE_PREFIX = "quickbite_customer_cart_";
+const getCartKey = () => {
+  const tok = localStorage.getItem("token");
+  if (!tok) return CART_STORAGE_PREFIX + "guest";
+  try {
+    const payload = JSON.parse(atob(tok.split(".")[1]));
+    return CART_STORAGE_PREFIX + (payload.userId || payload.id || payload.sub || "guest");
+  } catch {
+    return CART_STORAGE_PREFIX + "guest";
+  }
+};
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("restaurants");
@@ -12,7 +22,7 @@ export default function Dashboard() {
   const [allMenuItems, setAllMenuItems] = useState([]);
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      const saved = localStorage.getItem(getCartKey());
       return saved ? JSON.parse(saved) : [];
     } catch (err) {
       console.error("Failed to load saved cart", err);
@@ -125,7 +135,7 @@ export default function Dashboard() {
 
   const fetchCart = async () => {
     try {
-      const savedCart = localStorage.getItem(CART_STORAGE_KEY);
+      const savedCart = localStorage.getItem(getCartKey());
       if (savedCart) {
         setCart(JSON.parse(savedCart));
         return;
@@ -147,7 +157,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+      localStorage.setItem(getCartKey(), JSON.stringify(cart));
     } catch (err) {
       console.error("Failed to persist cart", err);
     }
@@ -234,7 +244,7 @@ export default function Dashboard() {
       closeCheckoutModal();
       
       setCart([]);
-      localStorage.removeItem(CART_STORAGE_KEY);
+      localStorage.removeItem(getCartKey());
       // Refresh orders for the user and navigate to Orders tab so user sees the new order
       await fetchOrders(userId);
       setActiveTab("orders");
@@ -266,6 +276,7 @@ export default function Dashboard() {
   });
 
   const handleLogout = () => {
+    // Do not remove per-user cart on logout so carts persist per user across sessions
     localStorage.removeItem("token");
     navigate("/login");
   };
@@ -665,65 +676,28 @@ export default function Dashboard() {
 
         {/* Orders Tab */}
         {activeTab === "orders" && (
-          <div style={styles.ordersList}>
-            {orders.length === 0 ? (
-              <div style={styles.empty}>
-                <span style={{ fontSize: "48px" }}>📦</span>
-                <p>You haven't placed any orders yet.</p>
-                <button onClick={() => setActiveTab("restaurants")} style={styles.viewBtn}>
-                  Order Now
-                </button>
-              </div>
-            ) : (
-              orders.map((order) => {
-                const sc = statusColor(order.status);
-                const statusLabel = (order.status || "").toLowerCase();
-                const itemsList = order.orderItems || order.items || [];
-
-                return (
-                  <div key={order.id} style={styles.orderCard}>
-                    <div style={styles.orderHeader}>
-                      <div>
-                        <p style={styles.orderId}>Order #{order.id?.slice(0, 8).toUpperCase()}</p>
-                        <p style={styles.orderDate}>
-                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-PH", {
-                            year: "numeric", month: "short", day: "numeric",
-                          }) : "—"}
-                        </p>
-                      </div>
-                      <span style={{
-                        ...styles.statusPill,
-                        background: sc.bg,
-                        color: sc.color,
-                        fontWeight: "600",
-                      }}>
-                        {statusLabel}
-                      </span>
-                    </div>
-
-                    {itemsList.length > 0 && (
-                      <div style={styles.orderItems}>
-                        {itemsList.map((it) => (
-                          <div key={it.id || it.menuItemId || `${order.id}-${Math.random()}`} style={styles.orderItemRow}>
-                            <div>
-                              <p style={styles.orderItemName}>{it.menuItemName || it.name || (it.menuItem && it.menuItem.name) || "Item"}</p>
-                              <p style={styles.orderItemMeta}>Qty {it.quantity} · ₱{(it.price || it.unitPrice || 0).toFixed(2)} each</p>
-                            </div>
-                            <div style={styles.orderItemTotal}>₱{((it.price || it.unitPrice || 0) * (it.quantity || 0)).toFixed(2)}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div style={styles.orderFooter}>
-                      <span style={styles.orderTotal}>
-                        Total: <strong>₱{order.totalAmount?.toFixed(2)}</strong>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr>{["Order ID", "Customer", "Total", "Status", "Date"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {orders.length === 0 ? (
+                  <tr><td colSpan={5} style={styles.emptyCell}>You haven't placed any orders yet.</td></tr>
+                ) : orders.map((o) => {
+                  const sc = statusColor(o.status);
+                  return (
+                    <tr key={o.id} style={styles.tr}>
+                      <td style={styles.td}><span style={{ fontFamily: "monospace", fontWeight: "700" }}>#{o.id?.slice(0, 8).toUpperCase()}</span></td>
+                      <td style={styles.td}>{o.user?.email || user?.sub || "You"}</td>
+                      <td style={styles.td}><strong style={{ color: "#FF6B35" }}>₱{o.totalAmount?.toFixed(2)}</strong></td>
+                      <td style={styles.td}><span style={{ ...styles.pill, background: sc.bg, color: sc.color }}>{o.status}</span></td>
+                      <td style={styles.td}>{o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </main>
@@ -1501,4 +1475,11 @@ const styles = {
     minWidth: "150px",
     transition: "border-color 0.2s",
   },
+  tableWrapper: { background: "white", borderRadius: "14px", border: "1px solid #ececec", overflow: "hidden" },
+  table: { width: "100%", borderCollapse: "collapse" },
+  th: { padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "#aaa", textAlign: "left", background: "#fafafa", borderBottom: "1px solid #f0f0f0" },
+  tr: { borderBottom: "1px solid #f9f9f9" },
+  td: { padding: "12px 16px", fontSize: "13px", color: "#333" },
+  emptyCell: { padding: "3rem", textAlign: "center", color: "#aaa", fontSize: "14px" },
+  pill: { fontSize: "11px", fontWeight: "600", padding: "3px 10px", borderRadius: "999px" },
 };
