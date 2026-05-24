@@ -114,6 +114,7 @@ export default function AdminDashboard() {
     email: "",
     password: "",
   });
+  const [managerConfirmPassword, setManagerConfirmPassword] = useState("");
   const [onboardError, setOnboardError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -239,6 +240,7 @@ export default function AdminDashboard() {
         { ...onboardForm, existingManagerId: selectedExistingManagerId },
         authHeaders
       );
+      alert(`Restaurant "${onboardForm.name}" onboarded successfully!`);
       resetOnboardForm();
       setShowOnboardRestaurant(false);
       await loadAll();
@@ -254,13 +256,20 @@ export default function AdminDashboard() {
 
   const handleCreateManager = async (e) => {
     e.preventDefault();
+    if (managerForm.password !== managerConfirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
     setFormLoading(true);
     try {
       await axios.post(`${API_URL}/admin/managers`, managerForm, authHeaders);
+      alert(`Manager ${managerForm.firstname} ${managerForm.lastname} created successfully!`);
       setManagerForm({ firstname: "", lastname: "", email: "", password: "" });
+      setManagerConfirmPassword("");
       setShowCreateManager(false);
       await loadAll();
     } catch (err) {
+      alert("Failed to create manager. Please try again.");
       console.error("Failed to create manager", err);
     } finally {
       setFormLoading(false);
@@ -280,6 +289,7 @@ export default function AdminDashboard() {
     try {
       await axios.delete(`${API_URL}/users/${managerId}`, authHeaders);
       await loadAll();
+      setConfirmDeleteManager(null);
     } catch (err) {
       console.error("Failed to delete manager", err);
     }
@@ -537,6 +547,10 @@ export default function AdminDashboard() {
               <div style={styles.fieldGroup}>
                 <label style={styles.label}>Password</label>
                 <input id="manager-password" name="password" type="password" value={managerForm.password} onChange={(e) => setManagerForm({ ...managerForm, password: e.target.value })} placeholder="Min. 8 characters" required minLength={8} autoComplete="new-password" style={inputStyle} />
+              </div>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Confirm Password</label>
+                <input id="manager-confirm-password" name="confirmPassword" type="password" value={managerConfirmPassword} onChange={(e) => setManagerConfirmPassword(e.target.value)} placeholder="Re-enter password" required minLength={8} autoComplete="new-password" style={inputStyle} />
               </div>
               <div style={styles.modalBtns}>
                 <button type="button" onClick={() => setShowCreateManager(false)} style={styles.cancelBtn}>Cancel</button>
