@@ -170,9 +170,10 @@ export default function ManagerDashboard() {
     try {
       await axios.put(`${API_URL}/manager/restaurants/${restaurantId}/orders/${orderId}/status`,
         { status: newStatus }, authHeaders);
-      setOrders(orders.map((o) =>
-        o.id === orderId ? { ...o, status: newStatus } : o
-      ));
+      // Refetch orders and stats to ensure UI reflects backend state
+      await fetchOrders();
+      await fetchOrderStats();
+      await fetchSales();
     } catch (err) {
       alert("Failed to update order status");
     } finally {

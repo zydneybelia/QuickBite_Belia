@@ -9,6 +9,8 @@ export default function Register() {
     email: "",
     password: "",
   });
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +22,17 @@ export default function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+
+    if (form.password !== confirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      alert("You must agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await registerUser(form);
@@ -139,13 +152,30 @@ export default function Register() {
             <input
               name="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Min. 6 characters"
+              placeholder="Min. 8 characters"
               value={form.password}
               onChange={handleChange}
               onFocus={focusStyle}
               onBlur={blurStyle}
               required
-              minLength={6}
+              minLength={8}
+              style={styles.input}
+            />
+          </div>
+
+          {/* Confirm Password */}
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>Confirm password</label>
+            <input
+              name="confirmPassword"
+              type={showPassword ? "text" : "password"}
+              placeholder="Re-enter password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onFocus={focusStyle}
+              onBlur={blurStyle}
+              required
+              minLength={8}
               style={styles.input}
             />
           </div>
@@ -179,12 +209,22 @@ export default function Register() {
             </div>
           )}
 
-          {/* Terms */}
-          <p style={styles.terms}>
-            By creating an account, you agree to our{" "}
-            <a href="/terms" style={styles.link}>Terms of Service</a> and{" "}
-            <a href="/privacy" style={styles.link}>Privacy Policy</a>.
-          </p>
+          {/* ✅ Fixed Terms Checkbox — wrapped in <span> for natural inline flow */}
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
+              style={styles.checkbox}
+              required
+            />
+            <span>
+              By creating an account, you agree to QuickBite's{" "}
+              <a href="/terms" style={styles.link}>Terms of Service</a>
+              {" "}and{" "}
+              <a href="/privacy" style={styles.link}>Privacy Policy</a>.
+            </span>
+          </label>
 
           {/* Submit */}
           <button
@@ -358,6 +398,23 @@ const styles = {
     fontSize: "12px",
     color: "#888",
     minWidth: "50px",
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "10px",
+    fontSize: "12px",
+    color: "#555",
+    lineHeight: "1.6",
+    cursor: "pointer",
+  },
+  checkbox: {
+    width: "18px",
+    height: "18px",
+    marginTop: "3px",
+    accentColor: "#FF6B35",
+    flexShrink: 0,
+    cursor: "pointer",
   },
   terms: {
     fontSize: "12px",

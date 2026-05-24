@@ -37,6 +37,11 @@ public class UserService {
             throw new RuntimeException("Invalid email or password");
         }
 
+        // Block disabled users
+        if (!user.isActive()) {
+            throw new RuntimeException("Account is disabled");
+        }
+
         // Generate JWT token
         String token = jwtTokenProvider.generateToken(
                 user.getId(),

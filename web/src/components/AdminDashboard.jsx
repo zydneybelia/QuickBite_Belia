@@ -71,10 +71,11 @@ export default function AdminDashboard() {
     total: usersList.length,
     customers: usersList.filter((u) => u.role === "CUSTOMER").length,
     managers: managersList.length,
+    active: usersList.filter((u) => u.active).length,
+    disabled: usersList.filter((u) => !u.active).length,
   };
 
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [confirmDeleteManager, setConfirmDeleteManager] = useState(null);
   const [showOnboardRestaurant, setShowOnboardRestaurant] = useState(false);
   const [showCreateRestaurant, setShowCreateRestaurant] = useState(false);
   const [showEditRestaurant, setShowEditRestaurant] = useState(false);
@@ -114,6 +115,7 @@ export default function AdminDashboard() {
     email: "",
     password: "",
   });
+  const [managerConfirmPassword, setManagerConfirmPassword] = useState("");
   const [onboardError, setOnboardError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -215,6 +217,20 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleToggleUserStatus = async (userId, isActive) => {
+    setFormLoading(true);
+    try {
+      const endpoint = isActive ? "deactivate" : "activate";
+      await axios.put(`${API_URL}/admin/users/${userId}/${endpoint}`, {}, authHeaders);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to update user status", err);
+      alert("Unable to update user status. Please try again.");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const handleCreateRestaurant = async (e) => {
     e.preventDefault();
     setFormLoading(true);
@@ -239,6 +255,7 @@ export default function AdminDashboard() {
         { ...onboardForm, existingManagerId: selectedExistingManagerId },
         authHeaders
       );
+      alert(`Restaurant "${onboardForm.name}" onboarded successfully!`);
       resetOnboardForm();
       setShowOnboardRestaurant(false);
       await loadAll();
@@ -254,13 +271,20 @@ export default function AdminDashboard() {
 
   const handleCreateManager = async (e) => {
     e.preventDefault();
+    if (managerForm.password !== managerConfirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
     setFormLoading(true);
     try {
       await axios.post(`${API_URL}/admin/managers`, managerForm, authHeaders);
+      alert(`Manager ${managerForm.firstname} ${managerForm.lastname} created successfully!`);
       setManagerForm({ firstname: "", lastname: "", email: "", password: "" });
+      setManagerConfirmPassword("");
       setShowCreateManager(false);
       await loadAll();
     } catch (err) {
+      alert("Failed to create manager. Please try again.");
       console.error("Failed to create manager", err);
     } finally {
       setFormLoading(false);
@@ -276,12 +300,17 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteManager = async (managerId) => {
+  const handleToggleManagerStatus = async (managerId, isActive) => {
+    setFormLoading(true);
     try {
-      await axios.delete(`${API_URL}/users/${managerId}`, authHeaders);
+      const endpoint = isActive ? "deactivate" : "activate";
+      await axios.put(`${API_URL}/admin/managers/${managerId}/${endpoint}`, {}, authHeaders);
       await loadAll();
     } catch (err) {
-      console.error("Failed to delete manager", err);
+      console.error("Failed to update manager status", err);
+      alert("Unable to update manager status. Please try again.");
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -318,19 +347,6 @@ export default function AdminDashboard() {
             <div style={styles.modalBtns}>
               <button onClick={() => setConfirmDelete(null)} style={styles.cancelBtn}>Cancel</button>
               <button onClick={() => handleDeleteUser(confirmDelete.id)} style={styles.redBtn}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDeleteManager && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>Delete Manager</h3>
-            <p style={styles.modalText}>Are you sure you want to delete manager <strong>{confirmDeleteManager.managerName || "this manager"}</strong> from <strong>{confirmDeleteManager.restaurantName || "the restaurant"}</strong>? This will delete their account and unassign them.</p>
-            <div style={styles.modalBtns}>
-              <button onClick={() => setConfirmDeleteManager(null)} style={styles.cancelBtn}>Cancel</button>
-              <button onClick={() => handleDeleteManager(confirmDeleteManager.id)} style={styles.redBtn}>Delete</button>
             </div>
           </div>
         </div>
@@ -538,6 +554,10 @@ export default function AdminDashboard() {
                 <label style={styles.label}>Password</label>
                 <input id="manager-password" name="password" type="password" value={managerForm.password} onChange={(e) => setManagerForm({ ...managerForm, password: e.target.value })} placeholder="Min. 8 characters" required minLength={8} autoComplete="new-password" style={inputStyle} />
               </div>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Confirm Password</label>
+                <input id="manager-confirm-password" name="confirmPassword" type="password" value={managerConfirmPassword} onChange={(e) => setManagerConfirmPassword(e.target.value)} placeholder="Re-enter password" required minLength={8} autoComplete="new-password" style={inputStyle} />
+              </div>
               <div style={styles.modalBtns}>
                 <button type="button" onClick={() => setShowCreateManager(false)} style={styles.cancelBtn}>Cancel</button>
                 <button type="submit" disabled={formLoading} style={styles.orangeBtn}>
@@ -695,39 +715,65 @@ export default function AdminDashboard() {
 
         {/* Users */}
         {activeTab === "users" && !loading && (
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>{["Name", "Email", "Role", "Created At", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {usersList.length === 0 ? (
-                  <tr><td colSpan={5} style={styles.emptyCell}>No users yet.</td></tr>
-                ) : usersList.map((u) => (
-                  <tr key={u.id} style={styles.tr}>
-                    <td style={styles.td}>
-                      <div style={styles.nameCell}>
-                        <div style={styles.tableAvatar}>{u.firstname?.charAt(0)?.toUpperCase()}</div>
-                        <span>{u.firstname} {u.lastname}</span>
-                      </div>
-                    </td>
-                    <td style={styles.td}>{u.email}</td>
-                    <td style={styles.td}>
-                      <span style={{
-                        ...styles.pill,
-                        background: u.role === "ADMIN" ? "#fdf2f8" : u.role?.includes("MANAGER") ? "#eff6ff" : "#f0fdf4",
-                        color: u.role === "ADMIN" ? "#9333ea" : u.role?.includes("MANAGER") ? "#2563eb" : "#16a34a",
-                      }}>{u.role}</span>
-                    </td>
-                    <td style={styles.td}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</td>
-                    <td style={styles.td}>
-                      <button onClick={() => setConfirmDelete({ id: u.id })} style={styles.deleteRowBtn}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div style={styles.statusGrid}>
+              <div style={styles.statusCard}>
+                <p style={styles.statusLabel}>Active users</p>
+                <p style={styles.statusValue}>{userStats.active}</p>
+              </div>
+              <div style={{ ...styles.statusCard, background: "#fef2f2", borderColor: "#fecaca" }}>
+                <p style={styles.statusLabel}>Disabled users</p>
+                <p style={styles.statusValue}>{userStats.disabled}</p>
+              </div>
+            </div>
+            <div style={styles.tableWrapper}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>{["Name", "Email", "Role", "Status", "Created At", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {usersList.length === 0 ? (
+                    <tr><td colSpan={6} style={styles.emptyCell}>No users yet.</td></tr>
+                  ) : usersList.map((u) => (
+                    <tr key={u.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        <div style={styles.nameCell}>
+                          <div style={styles.tableAvatar}>{u.firstname?.charAt(0)?.toUpperCase()}</div>
+                          <span>{u.firstname} {u.lastname}</span>
+                        </div>
+                      </td>
+                      <td style={styles.td}>{u.email}</td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.pill,
+                          background: u.role === "ADMIN" ? "#fdf2f8" : u.role?.includes("MANAGER") ? "#eff6ff" : "#f0fdf4",
+                          color: u.role === "ADMIN" ? "#9333ea" : u.role?.includes("MANAGER") ? "#2563eb" : "#16a34a",
+                        }}>{u.role}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.pill,
+                          background: u.active ? "#ecfdf5" : "#fef2f2",
+                          color: u.active ? "#16a34a" : "#dc2626",
+                        }}>
+                          {u.active ? "Active" : "Disabled"}
+                        </span>
+                      </td>
+                      <td style={styles.td}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</td>
+                      <td style={styles.td}>
+                        <button
+                          onClick={() => handleToggleUserStatus(u.id, u.active)}
+                          style={u.active ? styles.deleteRowBtn : { ...styles.assignBtn, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
+                        >
+                          {u.active ? "Disable" : "Activate"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {/* Restaurants */}
@@ -789,7 +835,7 @@ export default function AdminDashboard() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>{["Name", "Email", "Role", "Assigned Restaurant", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                <tr>{["Name", "Email", "Role", "Status", "Assigned Restaurant", "Action"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {managersList.length === 0 ? (
@@ -808,6 +854,15 @@ export default function AdminDashboard() {
                       <td style={styles.td}>
                         <span style={{ ...styles.pill, background: "#eff6ff", color: "#2563eb" }}>{m.role}</span>
                       </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.pill,
+                          background: m.active ? "#ecfdf5" : "#fef2f2",
+                          color: m.active ? "#16a34a" : "#dc2626",
+                        }}>
+                          {m.active ? "Active" : "Disabled"}
+                        </span>
+                      </td>
                       <td style={styles.td}>{assignedRestaurant?.name || "Unassigned"}</td>
                       <td style={styles.td}>
                         <div style={{ display: "flex", gap: "8px" }}>
@@ -818,10 +873,10 @@ export default function AdminDashboard() {
                             Update
                           </button>
                           <button
-                            onClick={() => setConfirmDeleteManager({ id: m.id, managerName: m.firstname + " " + m.lastname, restaurantName: assignedRestaurant?.name || "N/A" })}
-                            style={styles.deleteRowBtn}
+                            onClick={() => handleToggleManagerStatus(m.id, m.active)}
+                            style={m.active ? styles.deleteRowBtn : { ...styles.assignBtn, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
                           >
-                            Delete
+                            {m.active ? "Disable" : "Activate"}
                           </button>
                         </div>
                       </td>
@@ -905,6 +960,10 @@ const styles = {
   loadingRow: { display: "flex", alignItems: "center", gap: "10px", padding: "2rem 0" },
   spinner: { width: "20px", height: "20px", border: "2px solid #f0f0f0", borderTop: "2px solid #FF6B35", borderRadius: "50%" },
   overviewGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" },
+  statusGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "16px" },
+  statusCard: { background: "white", borderRadius: "14px", border: "1px solid #e5e7eb", padding: "18px", display: "flex", flexDirection: "column", gap: "8px" },
+  statusLabel: { fontSize: "13px", color: "#888", margin: 0 },
+  statusValue: { fontSize: "28px", fontWeight: "700", color: "#1a1a1a", margin: 0 },
   statCard: { background: "white", borderRadius: "14px", border: "1px solid #ececec", padding: "20px", display: "flex", alignItems: "center", gap: "16px" },
   statIcon: { fontSize: "32px" },
   statLabel: { fontSize: "13px", color: "#aaa", margin: "0 0 4px" },

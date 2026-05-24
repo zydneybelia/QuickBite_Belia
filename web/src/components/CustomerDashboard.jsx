@@ -230,6 +230,9 @@ export default function Dashboard() {
         })),
       }, authHeaders);
 
+      // Close checkout modal immediately
+      closeCheckoutModal();
+      
       setCart([]);
       localStorage.removeItem(CART_STORAGE_KEY);
       // Refresh orders for the user and navigate to Orders tab so user sees the new order
@@ -240,8 +243,6 @@ export default function Dashboard() {
       setTimeout(() => setShowOrderPlaced(false), 5000);
     } catch (err) {
       console.error("Checkout failed", err);
-    } finally {
-      closeCheckoutModal();
     }
   };
 
