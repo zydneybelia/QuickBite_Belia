@@ -35,4 +35,11 @@ public class MenuService {
                 .map(MenuItemDtos.MenuItemResponse::fromEntity)
                 .collect(Collectors.toList());
     }
+
+    public List<MenuItemDtos.MenuItemResponse> getAllMenuItems() {
+        return menuItemRepository.findAll()
+                .stream()
+                .map(MenuItemDtos.MenuItemResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
 }

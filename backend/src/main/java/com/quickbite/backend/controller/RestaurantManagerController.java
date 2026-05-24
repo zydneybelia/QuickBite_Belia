@@ -112,6 +112,8 @@ public class RestaurantManagerController {
         restaurant.setName(request.name());
         restaurant.setDescription(request.description());
         restaurant.setLocation(request.location());
+        restaurant.setContactNumber(request.contactNumber());
+        restaurant.setCuisineType(request.cuisineType());
         restaurant.setStatus(request.status() != null ? request.status() : "active");
         restaurant.setOwner(manager);
 
@@ -126,6 +128,8 @@ public class RestaurantManagerController {
         restaurant.setName(request.name());
         restaurant.setDescription(request.description());
         restaurant.setLocation(request.location());
+        restaurant.setContactNumber(request.contactNumber());
+        restaurant.setCuisineType(request.cuisineType());
         restaurant.setStatus(request.status() != null ? request.status() : restaurant.getStatus());
         return toRestaurantResponse(restaurantRepository.save(restaurant));
     }
@@ -236,21 +240,24 @@ public class RestaurantManagerController {
 
     private RestaurantResponse toRestaurantResponse(Restaurant restaurant) {
         String managerName = null;
+        String managerId = null;
         if (restaurant.getOwner() != null) {
+            managerId = restaurant.getOwner().getId();
             managerName = (restaurant.getOwner().getFirstname() == null ? "" : restaurant.getOwner().getFirstname())
                 + (restaurant.getOwner().getLastname() == null ? "" : " " + restaurant.getOwner().getLastname());
             managerName = managerName.trim();
             if (managerName.isEmpty()) managerName = null;
         }
         return new RestaurantResponse(
-            restaurant.getId(),
-            restaurant.getName(),
-            restaurant.getDescription(),
-            restaurant.getLocation(),
-            restaurant.getContactNumber(),
-            restaurant.getCuisineType(),
-            restaurant.getStatus(),
-            managerName
+                restaurant.getId(),
+                restaurant.getName(),
+                restaurant.getDescription(),
+                restaurant.getLocation(),
+                restaurant.getContactNumber(),
+                restaurant.getCuisineType(),
+                restaurant.getStatus(),
+                managerId,
+                managerName
         );
     }
 

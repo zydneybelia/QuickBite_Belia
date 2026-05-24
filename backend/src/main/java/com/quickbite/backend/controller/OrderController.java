@@ -10,6 +10,8 @@ import com.quickbite.backend.repository.MenuItemRepository;
 import com.quickbite.backend.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
@@ -51,11 +53,28 @@ public class OrderController {
         return orderRepository.findByUserId(userId).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    @GetMapping("/me")
+    public List<OrderDtos.OrderResponse> getMyOrders() {
+        String userId = getCurrentAuthenticatedUserId();
+        if (userId == null) {
+            return List.of();
+        }
+        return orderRepository.findByUserId(userId).stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<OrderDtos.OrderResponse> getOrderById(@PathVariable String id) {             // ✅ String
         Optional<Order> order = orderRepository.findById(id);
         return order.map(o -> ResponseEntity.ok(toResponse(o)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private String getCurrentAuthenticatedUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return null;
+        }
+        return auth.getName();
     }
 
     @PostMapping

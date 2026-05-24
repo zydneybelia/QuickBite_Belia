@@ -58,6 +58,8 @@ public class AdminController {
     @PostMapping("/restaurants")
     public RestaurantResponse createRestaurant(@RequestBody RestaurantRequest request) {
         requireAdminRole();
+        validateRestaurantFields(request.name(), request.description(), request.location(), request.contactNumber(), request.cuisineType());
+
         Restaurant restaurant = new Restaurant();
         restaurant.setName(request.name());
         restaurant.setDescription(request.description());
@@ -94,6 +96,8 @@ public class AdminController {
             manager.setRole(RoleConstants.RESTAURANT_MANAGER);
             manager = userService.createUser(manager);
         }
+
+        validateRestaurantFields(request.name(), request.description(), request.location(), request.contactNumber(), request.cuisineType());
 
         Restaurant restaurant = new Restaurant();
         restaurant.setName(request.name());
@@ -139,6 +143,25 @@ public class AdminController {
         if (value == null || value.isBlank()) {
             throw new RuntimeException(fieldName + " is required");
         }
+    }
+
+    private void requireMaxLength(String fieldName, String value, int maxLength) {
+        if (value != null && value.length() > maxLength) {
+            throw new RuntimeException(fieldName + " must not exceed " + maxLength + " characters");
+        }
+    }
+
+    private void validateRestaurantFields(String name, String description, String location, String contactNumber, String cuisineType) {
+        requireNonEmpty("Restaurant name", name);
+        requireNonEmpty("Restaurant location", location);
+        requireNonEmpty("Contact number", contactNumber);
+        requireNonEmpty("Cuisine type", cuisineType);
+
+        requireMaxLength("Restaurant name", name, 255);
+        requireMaxLength("Restaurant description", description, 2000);
+        requireMaxLength("Restaurant location", location, 500);
+        requireMaxLength("Contact number", contactNumber, 50);
+        requireMaxLength("Cuisine type", cuisineType, 100);
     }
 
     private boolean isValidEmail(String email) {
@@ -201,6 +224,41 @@ public class AdminController {
         return toRestaurantResponse(restaurantRepository.save(restaurant));
     }
 
+    @PutMapping("/restaurants/{restaurantId}")
+    public RestaurantResponse updateRestaurant(@PathVariable String restaurantId,
+                                               @RequestBody RestaurantRequest request) {
+        requireAdminRole();
+        validateRestaurantFields(request.name(), request.description(), request.location(), request.contactNumber(), request.cuisineType());
+
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new RuntimeException("Restaurant not found"));
+        restaurant.setName(request.name());
+        restaurant.setDescription(request.description());
+        restaurant.setLocation(request.location());
+        restaurant.setContactNumber(request.contactNumber());
+        restaurant.setCuisineType(request.cuisineType());
+        restaurant.setStatus(request.status() != null ? request.status() : restaurant.getStatus());
+        return toRestaurantResponse(restaurantRepository.save(restaurant));
+    }
+
+    @PutMapping("/restaurants/{restaurantId}/deactivate")
+    public RestaurantResponse deactivateRestaurant(@PathVariable String restaurantId) {
+        requireAdminRole();
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new RuntimeException("Restaurant not found"));
+        restaurant.setStatus("inactive");
+        return toRestaurantResponse(restaurantRepository.save(restaurant));
+    }
+
+    @PutMapping("/restaurants/{restaurantId}/activate")
+    public RestaurantResponse activateRestaurant(@PathVariable String restaurantId) {
+        requireAdminRole();
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new RuntimeException("Restaurant not found"));
+        restaurant.setStatus("active");
+        return toRestaurantResponse(restaurantRepository.save(restaurant));
+    }
+
     @GetMapping("/managers")
     public List<ManagerResponse> getAllManagers() {
         requireAdminRole();
@@ -212,7 +270,9 @@ public class AdminController {
 
     private RestaurantResponse toRestaurantResponse(Restaurant restaurant) {
         String managerName = null;
+        String managerId = null;
         if (restaurant.getOwner() != null) {
+            managerId = restaurant.getOwner().getId();
             managerName = (restaurant.getOwner().getFirstname() == null ? "" : restaurant.getOwner().getFirstname())
                 + (restaurant.getOwner().getLastname() == null ? "" : " " + restaurant.getOwner().getLastname());
             managerName = managerName.trim();
@@ -226,6 +286,7 @@ public class AdminController {
             restaurant.getContactNumber(),
             restaurant.getCuisineType(),
             restaurant.getStatus(),
+            managerId,
             managerName
         );
     }

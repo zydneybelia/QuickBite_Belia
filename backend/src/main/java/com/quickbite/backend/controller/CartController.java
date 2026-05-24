@@ -4,6 +4,8 @@ import com.quickbite.backend.model.Cart;
 import com.quickbite.backend.repository.CartRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +26,17 @@ public class CartController {
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<Cart> getCartByUserId(@PathVariable String userId) {       // ✅ String
+        Optional<Cart> cart = cartRepository.findByUserId(userId);
+        return cart.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Cart> getMyCart() {
+        String userId = getCurrentAuthenticatedUserId();
+        if (userId == null) {
+            return ResponseEntity.badRequest().build();
+        }
         Optional<Cart> cart = cartRepository.findByUserId(userId);
         return cart.map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -63,5 +76,13 @@ public class CartController {
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.notFound().build();
+    }
+
+    private String getCurrentAuthenticatedUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return null;
+        }
+        return auth.getName();
     }
 }

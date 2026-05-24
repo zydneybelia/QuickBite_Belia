@@ -12,19 +12,23 @@ public class Restaurant {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;                          // ✅ String not Long
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String name;
 
-    private String description;                 // ✅ matches ERD
+    @Column(columnDefinition = "text")
+    private String description;
 
-    private String location;                    // ✅ renamed from address (matches ERD)
+    @Column(length = 500)
+    private String location;
 
-    private String contactNumber;               // ✅ admin onboarding field
+    @Column(length = 50)
+    private String contactNumber;
 
-    private String cuisineType;                 // ✅ admin onboarding field
+    @Column(length = 100)
+    private String cuisineType;
 
-    @Column(nullable = false)
-    private String status = "active";           // ✅ active/inactive (matches ERD)
+    @Column(nullable = false, length = 50)
+    private String status = "active";
 
     // Many-to-One: Multiple restaurants belong to one user/owner
     @ManyToOne(fetch = FetchType.LAZY)

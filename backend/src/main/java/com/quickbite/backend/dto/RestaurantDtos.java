@@ -19,6 +19,7 @@ public class RestaurantDtos {
             String contactNumber,
             String cuisineType,
             String status,
+            String managerId,
             String managerName
     ) {}
 

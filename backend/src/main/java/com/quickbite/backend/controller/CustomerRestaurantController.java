@@ -32,6 +32,12 @@ public class CustomerRestaurantController {
         return ResponseEntity.ok(restaurants);
     }
 
+    @GetMapping("/menu")
+    public ResponseEntity<List<MenuItemDtos.MenuItemResponse>> getAllMenus() {
+        List<MenuItemDtos.MenuItemResponse> menuItems = menuService.getAllMenuItems();
+        return ResponseEntity.ok(menuItems);
+    }
+
     @GetMapping("/{restaurantId}/menu")
     public ResponseEntity<List<MenuItemDtos.MenuItemResponse>> getRestaurantMenu(@PathVariable String restaurantId) {
         List<MenuItemDtos.MenuItemResponse> menuItems = menuService.getMenuItemsForRestaurant(restaurantId);
