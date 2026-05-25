@@ -71,8 +71,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
                 user.getRole()
         );
 
-        // Redirect
-        String redirectUrl = "http://localhost:3000/home?token=" + token;
+        // Redirect back to login page with JWT token in query string
+        String redirectUrl = "http://localhost:3000/login?token=" + token;
 
         response.sendRedirect(redirectUrl);
     }

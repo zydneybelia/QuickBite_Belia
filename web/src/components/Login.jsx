@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-import { loginUser, BASE_API_URL } from "../services/authService";
+import { loginUser, BASE_API_URL, OAUTH2_AUTH_URL } from "../services/authService";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
@@ -12,15 +12,74 @@ export default function Login() {
 
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  try {
-    const res = await loginUser({ email, password });
+  useEffect(() => {
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    const tokenFromGoogle = urlParams.get("token");
 
-    // Store token
-    const token = res.data.token;
-    localStorage.setItem("token", token);
+    if (tokenFromGoogle) {
+      localStorage.setItem("token", tokenFromGoogle);
+      window.history.replaceState({}, document.title, "/login");
+      handleRoleRedirect(tokenFromGoogle);
+    }
+  }, []);
+
+  const handleRoleRedirect = async (token) => {
+    const decodeJwtRole = (jwt) => {
+      try {
+        const payload = jwt.split(".")[1];
+        const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+        const decoded = JSON.parse(atob(padded));
+        return decoded?.role;
+      } catch (error) {
+        console.error("Failed to decode JWT role", error);
+        return null;
+      }
+    };
+
+    let role = decodeJwtRole(token);
+    if (typeof role === "string" && role.startsWith("ROLE_")) {
+      role = role.substring(5);
+    }
+
+    if (role === "CUSTOMER") {
+      navigate("/customer-dashboard");
+    } else if (role === "RESTAURANT_MANAGER") {
+      try {
+        const assignedRes = await axios.get(`${BASE_API_URL}/manager/assigned-restaurant`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const assigned = assignedRes.data;
+        if (assigned?.restaurantId) {
+          navigate(`/manager/restaurant/${assigned.restaurantId}`);
+        } else {
+          navigate("/manager/waiting");
+        }
+      } catch (error) {
+        if (error.response?.status === 404) {
+          navigate("/manager/waiting");
+        } else {
+          console.error("Failed to resolve manager restaurant assignment", error);
+          navigate("/manager/waiting");
+        }
+      }
+    } else if (role === "ADMIN") {
+      navigate("/admin-dashboard");
+    } else {
+      navigate("/");
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await loginUser({ email, password });
+
+      // Store token
+      const token = res.data.token;
+      localStorage.setItem("token", token);
 
     const decodeJwtRole = (jwt) => {
       try {
@@ -193,7 +252,9 @@ export default function Login() {
           <button
             type="button"
             style={styles.googleBtn}
-            onClick={() => alert("Google login integration coming soon")}
+            onClick={() => {
+              window.location.href = OAUTH2_AUTH_URL;
+            }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -207,7 +268,7 @@ export default function Login() {
       </div>
 
       {/* Bottom copyright */}
-      <p style={styles.copyright}>© 2024 QuickBite. All rights reserved.</p>
+      <p style={styles.copyright}>© 2026 QuickBite. All rights reserved.</p>
     </div>
   );
 }

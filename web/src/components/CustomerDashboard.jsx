@@ -39,6 +39,11 @@ export default function Dashboard() {
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [orderPlacedMsg, setOrderPlacedMsg] = useState("");
   const [showOrderPlaced, setShowOrderPlaced] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [addToCartModalOpen, setAddToCartModalOpen] = useState(false);
+  const [itemToAdd, setItemToAdd] = useState(null);
+  const [addQty, setAddQty] = useState(1);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -176,12 +181,40 @@ export default function Dashboard() {
   }, [activeTab, selectedRestaurant, allMenuItems]);
 
   const handleAddToCart = (item) => {
-    const existing = cart.find((c) => c.id === item.id);
+    setItemToAdd(item);
+    setAddQty(1);
+    setAddToCartModalOpen(true);
+  };
+
+  const handleConfirmAddToCart = () => {
+    if (!itemToAdd) return;
+    const existing = cart.find((c) => c.id === itemToAdd.id);
     if (existing) {
-      setCart(cart.map((c) => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+      setCart(cart.map((c) => c.id === itemToAdd.id ? { ...c, quantity: c.quantity + addQty } : c));
     } else {
-      setCart([...cart, { ...item, quantity: 1 }]);
+      setCart([...cart, { ...itemToAdd, quantity: addQty }]);
     }
+    setAddToCartModalOpen(false);
+    setItemToAdd(null);
+    setAddQty(1);
+  };
+
+  const handleCloseAddModal = () => {
+    setAddToCartModalOpen(false);
+    setItemToAdd(null);
+    setAddQty(1);
+  };
+
+  const handleOrderNow = (item) => {
+    // Add item to cart if not already there
+    const existing = cart.find((c) => c.id === item.id);
+    if (!existing) {
+      setCart([...cart, { ...item, quantity: 1 }]);
+    } else {
+      setCart(cart.map((c) => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+    }
+    // Open checkout modal immediately
+    setTimeout(() => setCheckoutOpen(true), 100);
   };
 
   const handleRemoveFromCart = (itemId) => {
@@ -207,6 +240,8 @@ export default function Dashboard() {
   const closeCheckoutModal = () => {
     setCheckoutOpen(false);
     setCheckoutStep(1);
+    setPaymentMethod("cash_on_delivery");
+    setPaymentReference("");
   };
 
   const checkoutItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -232,13 +267,26 @@ export default function Dashboard() {
         return;
       }
 
-      await axios.post(`${API_URL}/orders`, {
+      // Validate payment reference for GCash/Maya
+      if ((paymentMethod === "gcash" || paymentMethod === "maya") && paymentReference.length !== 11) {
+        alert(`Please enter a valid 11-digit number for ${paymentMethod === "gcash" ? "GCash" : "Maya"}`);
+        return;
+      }
+
+      const orderData = {
         userId,
         items: visibleCheckoutItems.map((item) => ({
           menuItemId: item.id,
           quantity: item.quantity,
         })),
-      }, authHeaders);
+        paymentMethod,
+      };
+
+      if (paymentReference) {
+        orderData.paymentReference = paymentReference;
+      }
+
+      await axios.post(`${API_URL}/orders`, orderData, authHeaders);
 
       // Close checkout modal immediately
       closeCheckoutModal();
@@ -477,17 +525,30 @@ export default function Dashboard() {
                     <p style={styles.menuDesc}>{item.description || "A delicious menu item"}</p>
                     <div style={styles.menuFooter}>
                       <span style={styles.price}>₱{item.price?.toFixed(2)}</span>
-                      <button
-                        onClick={() => handleAddToCart(item)}
-                        disabled={!item.availability}
-                        style={{
-                          ...styles.addBtn,
-                          opacity: item.availability ? 1 : 0.4,
-                          cursor: item.availability ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        + Add
-                      </button>
+                      <div style={styles.menuButtonGroup}>
+                        <button
+                          onClick={() => handleAddToCart(item)}
+                          disabled={!item.availability}
+                          style={{
+                            ...styles.addBtn,
+                            opacity: item.availability ? 1 : 0.4,
+                            cursor: item.availability ? "pointer" : "not-allowed",
+                          }}
+                        >
+                          + Add
+                        </button>
+                        <button
+                          onClick={() => handleOrderNow(item)}
+                          disabled={!item.availability}
+                          style={{
+                            ...styles.orderBtn,
+                            opacity: item.availability ? 1 : 0.4,
+                            cursor: item.availability ? "pointer" : "not-allowed",
+                          }}
+                        >
+                          Order Now
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -550,6 +611,38 @@ export default function Dashboard() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {addToCartModalOpen && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalBox}>
+              <div style={styles.modalHeader}>
+                <div>
+                  <h2 style={styles.modalTitle}>Add to cart</h2>
+                  <p style={styles.modalSubtitle}>{itemToAdd?.name}</p>
+                </div>
+                <button style={styles.modalCloseBtn} onClick={handleCloseAddModal}>✕</button>
+              </div>
+
+              <div style={styles.modalBody}>
+                <p style={{ color: "#555", margin: 0 }}>{itemToAdd?.description || "No description available."}</p>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, color: "#FF6B35" }}>₱{itemToAdd?.price?.toFixed(2)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => setAddQty(Math.max(1, addQty - 1))} style={styles.qtyBtnModal}>−</button>
+                    <span style={styles.qtyNumModal}>{addQty}</span>
+                    <button onClick={() => setAddQty(addQty + 1)} style={styles.qtyBtnModal}>+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 12, padding: "16px", justifyContent: "flex-end" }}>
+                <button style={styles.confirmBtn} onClick={handleConfirmAddToCart}>Add to cart</button>
+                <button style={styles.cancelBtn} onClick={handleCloseAddModal}>Cancel</button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -642,6 +735,52 @@ export default function Dashboard() {
                           ))}
                         </div>
 
+                        <div style={styles.paymentSection}>
+                          <label style={styles.paymentLabel}>Select Payment Method:</label>
+                          <div style={styles.paymentOptions}>
+                            {[
+                              { id: "gcash", label: "GCash", icon: "📱" },
+                              { id: "maya", label: "Maya", icon: "💳" },
+                              { id: "cash_on_delivery", label: "Cash on Delivery", icon: "💵" },
+                            ].map((method) => (
+                              <button
+                                key={method.id}
+                                onClick={() => setPaymentMethod(method.id)}
+                                style={{
+                                  ...styles.paymentOption,
+                                  background: paymentMethod === method.id ? "#fff4f0" : "white",
+                                  border: paymentMethod === method.id ? "2px solid #FF6B35" : "1px solid #ececec",
+                                }}
+                              >
+                                <span style={{ fontSize: "24px", marginBottom: "6px" }}>{method.icon}</span>
+                                <div style={{ fontSize: "13px", fontWeight: "600", color: "#1a1a1a" }}>{method.label}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {(paymentMethod === "gcash" || paymentMethod === "maya") && (
+                          <div style={styles.paymentRefSection}>
+                            <label style={styles.refLabel}>
+                              {paymentMethod === "gcash" ? "GCash" : "Maya"} Mobile Number
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Enter 11-digit number"
+                              value={paymentReference}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, "").slice(0, 11);
+                                setPaymentReference(value);
+                              }}
+                              maxLength="11"
+                              style={styles.refInput}
+                            />
+                            <p style={styles.refHint}>
+                              {paymentReference.length}/11 digits
+                            </p>
+                          </div>
+                        )}
+
                         <div style={styles.reviewBreakdown}>
                           <div style={styles.breakdownRow}>
                             <span>Subtotal</span>
@@ -661,7 +800,11 @@ export default function Dashboard() {
                   </div>
 
                   <div style={styles.reviewActions}>
-                    <button style={styles.confirmBtn} onClick={handleConfirmPay} disabled={visibleCheckoutItems.length === 0}>
+                    <button 
+                      style={styles.confirmBtn} 
+                      onClick={handleConfirmPay} 
+                      disabled={visibleCheckoutItems.length === 0 || ((paymentMethod === "gcash" || paymentMethod === "maya") && paymentReference.length !== 11)}
+                    >
                       Confirm & Pay
                     </button>
                     <button style={styles.cancelBtn} onClick={closeCheckoutModal}>
@@ -1017,6 +1160,22 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
   },
+  menuButtonGroup: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+  orderBtn: {
+    background: "white",
+    color: "#FF6B35",
+    border: "1.5px solid #FF6B35",
+    borderRadius: "8px",
+    padding: "6px 14px",
+    fontSize: "13px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
   cartContainer: {
     display: "grid",
     gridTemplateColumns: "1fr 320px",
@@ -1280,6 +1439,65 @@ const styles = {
     padding: "14px 16px",
     borderRadius: "16px",
     background: "#f3f4f6",
+  },
+  paymentSection: {
+    padding: "16px",
+    background: "#f8fafc",
+    borderRadius: "16px",
+    marginBottom: "16px",
+  },
+  paymentLabel: {
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#6b7280",
+    display: "block",
+    marginBottom: "12px",
+  },
+  paymentOptions: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "12px",
+  },
+  paymentOption: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "16px 12px",
+    borderRadius: "12px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  paymentRefSection: {
+    padding: "16px",
+    background: "#fff4f0",
+    borderRadius: "12px",
+    marginBottom: "16px",
+    border: "1px solid #ffe0cc",
+  },
+  refLabel: {
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#FF6B35",
+    display: "block",
+    marginBottom: "8px",
+  },
+  refInput: {
+    width: "100%",
+    padding: "10px 12px",
+    fontSize: "14px",
+    border: "1px solid #ececec",
+    borderRadius: "8px",
+    fontWeight: "600",
+    letterSpacing: "2px",
+    boxSizing: "border-box",
+    outline: "none",
+  },
+  refHint: {
+    fontSize: "12px",
+    color: "#888",
+    margin: "6px 0 0",
+    textAlign: "right",
   },
   reviewBreakdown: {
     display: "grid",

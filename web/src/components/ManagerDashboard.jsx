@@ -350,6 +350,7 @@ export default function ManagerDashboard() {
         <>
           <div style={styles.statsGrid}>
             {[
+              { label: "Revenue", value: `₱${sales.totalSales.toFixed(2)}`, color: "#16a34a" },
               { label: "Total Orders", value: orderStats.totalOrdersCount, color: "#1f2937" },
               { label: "Placed", value: orderStats.placedCount, color: "#ea580c" },
               { label: "Preparing", value: orderStats.preparingCount, color: "#ca8a04" },
@@ -541,7 +542,7 @@ const styles = {
   statusBtns: { display: "flex", gap: "6px" },
   statusBtn: { padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "500", transition: "all 0.15s" },
   headerActions: { display: "flex", gap: "10px", alignItems: "center" },
-  statsGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px", marginBottom: "24px" },
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "24px" },
   statsCard: { background: "white", borderRadius: "16px", padding: "18px 20px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)", minHeight: "110px", display: "flex", flexDirection: "column", justifyContent: "space-between" },
   statsLabel: { fontSize: "13px", color: "#6b7280", marginBottom: "10px" },
   statsValue: { fontSize: "28px", fontWeight: "700" },
