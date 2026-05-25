@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { registerUser } from "../services/authService";
 import { useNavigate } from "react-router-dom";
 
@@ -15,6 +15,39 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      const decodeJwtRole = (jwt) => {
+        try {
+          const payload = jwt.split(".")[1];
+          const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+          const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+          const decoded = JSON.parse(atob(padded));
+          return decoded?.role;
+        } catch (error) {
+          console.error("Failed to decode JWT role", error);
+          return null;
+        }
+      };
+
+      let role = decodeJwtRole(token);
+      if (typeof role === "string" && role.startsWith("ROLE_")) {
+        role = role.substring(5);
+      }
+
+      if (role === "CUSTOMER") {
+        navigate("/customer-dashboard");
+      } else if (role === "RESTAURANT_MANAGER") {
+        navigate("/manager-dashboard");
+      } else if (role === "ADMIN") {
+        navigate("/admin-dashboard");
+      } else {
+        navigate("/");
+      }
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });

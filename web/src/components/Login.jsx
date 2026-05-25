@@ -9,10 +9,17 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const navigate = useNavigate();
 
   useEffect(() => {
+    const existingToken = localStorage.getItem("token");
+    if (existingToken) {
+      handleRoleRedirect(existingToken);
+      return;
+    }
+
     const queryString = window.location.search;
     const urlParams = new URLSearchParams(queryString);
     const tokenFromGoogle = urlParams.get("token");
@@ -20,7 +27,10 @@ export default function Login() {
     if (tokenFromGoogle) {
       localStorage.setItem("token", tokenFromGoogle);
       window.history.replaceState({}, document.title, "/login");
-      handleRoleRedirect(tokenFromGoogle);
+      setSuccessMessage("Login successful! Redirecting...");
+      setTimeout(() => {
+        handleRoleRedirect(tokenFromGoogle);
+      }, 1500);
     }
   }, []);
 
@@ -81,57 +91,60 @@ export default function Login() {
       const token = res.data.token;
       localStorage.setItem("token", token);
 
-    const decodeJwtRole = (jwt) => {
-      try {
-        const payload = jwt.split(".")[1];
-        const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-        const decoded = JSON.parse(atob(padded));
-        return decoded?.role;
-      } catch (error) {
-        console.error("Failed to decode JWT role", error);
-        return null;
-      }
-    };
+      setSuccessMessage("Login successful! Redirecting...");
 
-    let role = res.data.role || decodeJwtRole(token);
-    if (typeof role === "string" && role.startsWith("ROLE_")) {
-      role = role.substring(5);
-    }
-
-    // ✅ Redirect based on normalized role
-    if (role === "CUSTOMER") {
-      navigate("/customer-dashboard");
-    } else if (role === "RESTAURANT_MANAGER") {
-      try {
-        const assignedRes = await axios.get(`${BASE_API_URL}/manager/assigned-restaurant`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const assigned = assignedRes.data;
-        console.debug("Login: assigned-restaurant response:", assigned);
-        if (assigned?.restaurantId) {
-          console.debug("Login: navigating to manager restaurant dashboard for restaurant", assigned.restaurantId);
-          navigate(`/manager/restaurant/${assigned.restaurantId}`);
-        } else {
-          console.debug("Login: no assigned restaurant, navigating to waiting page");
-          navigate("/manager/waiting");
+      const decodeJwtRole = (jwt) => {
+        try {
+          const payload = jwt.split(".")[1];
+          const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+          const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+          const decoded = JSON.parse(atob(padded));
+          return decoded?.role;
+        } catch (error) {
+          console.error("Failed to decode JWT role", error);
+          return null;
         }
-      } catch (error) {
-        console.debug("Login: error fetching assigned restaurant", error?.response?.status || error?.message || error);
-        if (error.response?.status === 404) {
-          navigate("/manager/waiting");
-        } else {
-          console.error("Failed to resolve manager restaurant assignment", error);
-          navigate("/manager/waiting");
-        }
-      }
-    } else if (role === "ADMIN") {
-      navigate("/admin-dashboard");
-    } else {
-      navigate("/");
-    }
+      };
 
-  } catch (err) {
+      let role = res.data.role || decodeJwtRole(token);
+      if (typeof role === "string" && role.startsWith("ROLE_")) {
+        role = role.substring(5);
+      }
+
+      setTimeout(() => {
+        // ✅ Redirect based on normalized role
+        if (role === "CUSTOMER") {
+          navigate("/customer-dashboard");
+        } else if (role === "RESTAURANT_MANAGER") {
+          const checkAssigned = async () => {
+            try {
+              const assignedRes = await axios.get(`${BASE_API_URL}/manager/assigned-restaurant`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const assigned = assignedRes.data;
+              if (assigned?.restaurantId) {
+                navigate(`/manager/restaurant/${assigned.restaurantId}`);
+              } else {
+                navigate("/manager/waiting");
+              }
+            } catch (error) {
+              if (error.response?.status === 404) {
+                navigate("/manager/waiting");
+              } else {
+                console.error("Failed to resolve manager restaurant assignment", error);
+                navigate("/manager/waiting");
+              }
+            }
+          };
+          checkAssigned();
+        } else if (role === "ADMIN") {
+          navigate("/admin-dashboard");
+        } else {
+          navigate("/");
+        }
+      }, 1500);
+
+    } catch (err) {
     const message = err.response?.data?.message || err.message || "Login failed";
     alert(message);
     console.error("Login error:", err);
@@ -164,6 +177,17 @@ export default function Login() {
           Need an account?{" "}
           <a href="/register" style={styles.link}>Create an account</a>
         </p>
+
+        {/* Success Message */}
+        {successMessage && (
+          <div style={styles.successBox}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" 
+              stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span style={styles.successText}>{successMessage}</span>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleLogin} style={styles.form}>
@@ -247,6 +271,13 @@ export default function Login() {
           >
             {loading ? "Logging in..." : "Log in"}
           </button>
+
+          {/* OR Divider */}
+          <div style={styles.orDivider}>
+            <div style={styles.orLine} />
+            <span style={styles.orText}>OR</span>
+            <div style={styles.orLine} />
+          </div>
 
           {/* Google Login Button */}
           <button
@@ -349,6 +380,21 @@ const styles = {
     color: "#888",
     margin: "0 0 1.75rem",
   },
+  successBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    background: "#f0fdf4",
+    border: "1px solid #bcf0da",
+    borderRadius: "10px",
+    padding: "10px 14px",
+    marginBottom: "1.5rem",
+  },
+  successText: {
+    fontSize: "14px",
+    color: "#16a34a",
+    fontWeight: "500",
+  },
   link: {
     color: "#FF6B35",
     textDecoration: "none",
@@ -417,7 +463,7 @@ const styles = {
     cursor: "pointer",
   },
   submitBtn: {
-    marginTop: "8px",
+    marginTop: "0",
     height: "48px",
     background: "#FF6B35",
     color: "white",
@@ -428,8 +474,25 @@ const styles = {
     letterSpacing: "0.2px",
     transition: "background 0.2s, transform 0.1s",
   },
+  orDivider: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    margin: "4px 0",
+  },
+  orLine: {
+    flex: 1,
+    height: "1px",
+    background: "#f0f0f0",
+  },
+  orText: {
+    fontSize: "12px",
+    color: "#ccc",
+    fontWeight: "600",
+    letterSpacing: "0.5px",
+  },
   googleBtn: {
-    marginTop: "12px",
+    marginTop: "0",
     height: "48px",
     background: "#ffffff",
     color: "#1a1a1a",
