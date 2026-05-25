@@ -89,9 +89,41 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== "orders") return;
+    if (activeTab !== "orders" && activeTab !== "activity") return;
     fetchOrders(getCurrentUserId());
   }, [activeTab]);
+
+  const handleReorder = (order) => {
+    if (!order.items || order.items.length === 0) return;
+    
+    // Add all items from the order to the cart
+    const newCart = [...cart];
+    order.items.forEach(orderItem => {
+      // Find the menu item in our allMenuItems list to get the latest info
+      const menuItem = allMenuItems.find(m => m.name === orderItem.name);
+      if (menuItem) {
+        const existing = newCart.find(c => c.id === menuItem.id);
+        if (existing) {
+          existing.quantity += orderItem.quantity;
+        } else {
+          newCart.push({ ...menuItem, quantity: orderItem.quantity });
+        }
+      }
+    });
+    
+    setCart(newCart);
+    setActiveTab("cart");
+  };
+
+  const getOrderStatusTimeline = (status) => {
+    const steps = ["PLACED", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED"];
+    const currentIndex = steps.indexOf(status?.toUpperCase());
+    return steps.map((step, index) => ({
+      label: step.replace(/_/g, " "),
+      completed: index <= currentIndex,
+      active: index === currentIndex
+    }));
+  };
 
   const fetchRestaurants = async () => {
     setLoading(true);
@@ -384,6 +416,7 @@ export default function Dashboard() {
           {[
             { key: "restaurants", label: "Restaurants", icon: "🏪" },
             { key: "favorites", label: "Favorites", icon: "❤️" },
+            { key: "activity", label: "Activity", icon: "⚡" },
             { key: "menu", label: "Menu", icon: "🍽️" },
             { key: "cart", label: "Cart", icon: "🛒", badge: cartCount },
             { key: "orders", label: "My Orders", icon: "📦" },
@@ -431,6 +464,7 @@ export default function Dashboard() {
             <h1 style={styles.pageTitle}>
               {activeTab === "restaurants" && "Browse Restaurants"}
               {activeTab === "favorites" && "Your Favorites"}
+              {activeTab === "activity" && "Recent Activity"}
               {activeTab === "menu" && (selectedRestaurant ? selectedRestaurant.name : "Menu")}
               {activeTab === "cart" && "Your Cart"}
               {activeTab === "orders" && "My Orders"}
@@ -438,6 +472,7 @@ export default function Dashboard() {
             <p style={styles.pageSubtitle}>
               {activeTab === "restaurants" && "Find your favorite food nearby"}
               {activeTab === "favorites" && `${favorites.length} restaurant${favorites.length !== 1 ? "s" : ""} saved`}
+              {activeTab === "activity" && "Track your orders and reorder favorites"}
               {activeTab === "menu" && selectedRestaurant?.location}
               {activeTab === "cart" && `${cartCount} item${cartCount !== 1 ? "s" : ""} in cart`}
               {activeTab === "orders" && `${orders.length} order${orders.length !== 1 ? "s" : ""} placed`}
@@ -555,6 +590,84 @@ export default function Dashboard() {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* Activity Tab */}
+        {activeTab === "activity" && !loading && (
+          <div style={styles.activityContainer}>
+            {/* Active Orders Section */}
+            <section style={styles.activitySection}>
+              <h2 style={styles.sectionTitle}>Current Orders</h2>
+              {orders.filter(o => ["PLACED", "PREPARING", "OUT_FOR_DELIVERY"].includes(o.status?.toUpperCase())).length === 0 ? (
+                <p style={styles.emptyText}>No active orders at the moment.</p>
+              ) : (
+                <div style={styles.activityGrid}>
+                  {orders.filter(o => ["PLACED", "PREPARING", "OUT_FOR_DELIVERY"].includes(o.status?.toUpperCase())).map(order => (
+                    <div key={order.id} style={styles.activityCard}>
+                      <div style={styles.activityCardHeader}>
+                        <span style={styles.orderIdText}>Order #{order.id?.slice(0, 8).toUpperCase()}</span>
+                        <span style={{
+                          ...styles.statusPill,
+                          background: statusColor(order.status).bg,
+                          color: statusColor(order.status).color
+                        }}>{order.status}</span>
+                      </div>
+                      
+                      <div style={styles.timeline}>
+                        {getOrderStatusTimeline(order.status).map((step, i) => (
+                          <div key={i} style={styles.timelineStep}>
+                            <div style={{
+                              ...styles.timelineDot,
+                              background: step.completed ? "#FF6B35" : "#e5e7eb",
+                              boxShadow: step.active ? "0 0 0 4px #fff4f0" : "none"
+                            }} />
+                            <span style={{
+                              ...styles.timelineLabel,
+                              color: step.completed ? "#1a1a1a" : "#9ca3af",
+                              fontWeight: step.active ? "600" : "400"
+                            }}>{step.label}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={styles.activityCardFooter}>
+                        <span style={styles.priceText}>₱{order.totalAmount?.toFixed(2)}</span>
+                        <button onClick={() => setActiveTab("orders")} style={styles.detailsBtn}>View Details</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Past Orders Section */}
+            <section style={styles.activitySection}>
+              <h2 style={styles.sectionTitle}>Past Orders</h2>
+              {orders.filter(o => o.status?.toUpperCase() === "DELIVERED").length === 0 ? (
+                <p style={styles.emptyText}>No past orders yet.</p>
+              ) : (
+                <div style={styles.pastOrdersList}>
+                  {orders.filter(o => o.status?.toUpperCase() === "DELIVERED").slice(0, 5).map(order => (
+                    <div key={order.id} style={styles.pastOrderRow}>
+                      <div style={styles.pastOrderInfo}>
+                        <span style={styles.pastOrderDate}>
+                          {new Date(order.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
+                        </span>
+                        <span style={styles.pastOrderId}>#{order.id?.slice(0, 8).toUpperCase()}</span>
+                        <span style={styles.pastOrderAmount}>₱{order.totalAmount?.toFixed(2)}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleReorder(order)} 
+                        style={styles.reorderBtn}
+                      >
+                        🔄 Reorder
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
 
@@ -1797,4 +1910,143 @@ const styles = {
   td: { padding: "12px 16px", fontSize: "13px", color: "#333" },
   emptyCell: { padding: "3rem", textAlign: "center", color: "#aaa", fontSize: "14px" },
   pill: { fontSize: "11px", fontWeight: "600", padding: "3px 10px", borderRadius: "999px" },
+  
+  // Activity Tab Styles
+  activityContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2rem",
+  },
+  activitySection: {
+    background: "white",
+    padding: "1.5rem",
+    borderRadius: "16px",
+    border: "1px solid #ececec",
+  },
+  sectionTitle: {
+    fontSize: "16px",
+    fontWeight: "700",
+    color: "#1a1a1a",
+    marginBottom: "1.25rem",
+    margin: 0,
+  },
+  activityGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+    gap: "1rem",
+  },
+  activityCard: {
+    background: "#f8fafc",
+    padding: "1.25rem",
+    borderRadius: "12px",
+    border: "1px solid #f1f5f9",
+  },
+  activityCardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "1.25rem",
+  },
+  orderIdText: {
+    fontSize: "13px",
+    fontWeight: "700",
+    color: "#64748b",
+  },
+  timeline: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "1.5rem",
+    position: "relative",
+    padding: "0 10px",
+  },
+  timelineStep: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "8px",
+    flex: 1,
+    zIndex: 1,
+  },
+  timelineDot: {
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    transition: "all 0.3s ease",
+  },
+  timelineLabel: {
+    fontSize: "10px",
+    textAlign: "center",
+    whiteSpace: "nowrap",
+  },
+  activityCardFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: "1rem",
+  },
+  priceText: {
+    fontSize: "15px",
+    fontWeight: "700",
+    color: "#FF6B35",
+  },
+  detailsBtn: {
+    background: "white",
+    border: "1px solid #e2e8f0",
+    borderRadius: "6px",
+    padding: "6px 12px",
+    fontSize: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
+  pastOrdersList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem",
+  },
+  pastOrderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.75rem 1rem",
+    background: "#f8fafc",
+    borderRadius: "10px",
+  },
+  pastOrderInfo: {
+    display: "flex",
+    gap: "1.5rem",
+    alignItems: "center",
+  },
+  pastOrderDate: {
+    fontSize: "13px",
+    color: "#64748b",
+    minWidth: "60px",
+  },
+  pastOrderId: {
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  pastOrderAmount: {
+    fontSize: "13px",
+    fontWeight: "700",
+    color: "#FF6B35",
+  },
+  reorderBtn: {
+    background: "#FF6B35",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    padding: "8px 16px",
+    fontSize: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "transform 0.1s",
+  },
+  emptyText: {
+    fontSize: "14px",
+    color: "#94a3b8",
+    textAlign: "center",
+    padding: "1rem 0",
+  },
 };
