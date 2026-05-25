@@ -246,7 +246,7 @@ export default function Register() {
         </div>
       </div>
 
-      <p style={styles.copyright}>© 2024 QuickBite. All rights reserved.</p>
+      <p style={styles.copyright}>© 2026 QuickBite. All rights reserved.</p>
     </div>
   );
 }
