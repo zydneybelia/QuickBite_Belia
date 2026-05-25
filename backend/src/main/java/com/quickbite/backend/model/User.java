@@ -53,6 +53,15 @@ public class User {
     @JsonIgnore
     private List<RefreshToken> refreshTokens;
 
+    @ManyToMany
+    @JoinTable(
+        name = "user_favorite_restaurants",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "restaurant_id")
+    )
+    @JsonIgnore
+    private List<Restaurant> favoriteRestaurants = new java.util.ArrayList<>();
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -113,4 +122,20 @@ public class User {
 
     public List<RefreshToken> getRefreshTokens() { return refreshTokens; }
     public void setRefreshTokens(List<RefreshToken> refreshTokens) { this.refreshTokens = refreshTokens; }
+
+    public List<Restaurant> getFavoriteRestaurants() { return favoriteRestaurants; }
+    public void setFavoriteRestaurants(List<Restaurant> favoriteRestaurants) { this.favoriteRestaurants = favoriteRestaurants; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        User user = (User) o;
+        return id != null && id.equals(user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
+    }
 }

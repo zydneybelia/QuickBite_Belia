@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [favorites, setFavorites] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -80,8 +81,10 @@ export default function Dashboard() {
       setUser(payload);
       const userId = payload.userId || payload.id || payload.sub || null;
       fetchOrders(userId);
+      fetchFavorites();
     } catch {
       fetchOrders();
+      fetchFavorites();
     }
   }, []);
 
@@ -108,6 +111,29 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  const fetchFavorites = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/customer/restaurants/favorites`, authHeaders);
+      setFavorites(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch favorites", err);
+    }
+  };
+
+  const handleToggleFavorite = async (e, restaurantId) => {
+      e.stopPropagation();
+      try {
+        const res = await axios.post(`${API_URL}/customer/restaurants/${restaurantId}/favorite`, {}, authHeaders);
+        if (res.data.favorite) {
+          setFavorites(prev => [...new Set([...prev, restaurantId])]);
+        } else {
+          setFavorites(prev => prev.filter(id => id !== restaurantId));
+        }
+      } catch (err) {
+        console.error("Failed to toggle favorite", err);
+      }
+    };
 
   const fetchMenuItems = async (restaurantId) => {
     setLoading(true);
@@ -320,7 +346,9 @@ export default function Dashboard() {
 
     const matchesCategory = selectedCategory === "all" || (restaurant.category || "Other") === selectedCategory;
 
-    return matchesSearch && matchesCategory;
+    const matchesTab = activeTab !== "favorites" || favorites.includes(restaurant.id);
+
+    return matchesSearch && matchesCategory && matchesTab;
   });
 
   const handleLogout = () => {
@@ -355,6 +383,7 @@ export default function Dashboard() {
         <nav style={styles.nav}>
           {[
             { key: "restaurants", label: "Restaurants", icon: "🏪" },
+            { key: "favorites", label: "Favorites", icon: "❤️" },
             { key: "menu", label: "Menu", icon: "🍽️" },
             { key: "cart", label: "Cart", icon: "🛒", badge: cartCount },
             { key: "orders", label: "My Orders", icon: "📦" },
@@ -401,12 +430,14 @@ export default function Dashboard() {
           <div>
             <h1 style={styles.pageTitle}>
               {activeTab === "restaurants" && "Browse Restaurants"}
+              {activeTab === "favorites" && "Your Favorites"}
               {activeTab === "menu" && (selectedRestaurant ? selectedRestaurant.name : "Menu")}
               {activeTab === "cart" && "Your Cart"}
               {activeTab === "orders" && "My Orders"}
             </h1>
             <p style={styles.pageSubtitle}>
               {activeTab === "restaurants" && "Find your favorite food nearby"}
+              {activeTab === "favorites" && `${favorites.length} restaurant${favorites.length !== 1 ? "s" : ""} saved`}
               {activeTab === "menu" && selectedRestaurant?.location}
               {activeTab === "cart" && `${cartCount} item${cartCount !== 1 ? "s" : ""} in cart`}
               {activeTab === "orders" && `${orders.length} order${orders.length !== 1 ? "s" : ""} placed`}
@@ -427,8 +458,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Search & Filter Bar (Restaurants Tab) */}
-        {activeTab === "restaurants" && (
+        {/* Search & Filter Bar (Restaurants & Favorites Tab) */}
+        {(activeTab === "restaurants" || activeTab === "favorites") && (
           <div style={styles.filterBar}>
             <input
               type="text"
@@ -458,13 +489,18 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Restaurants Tab */}
-        {activeTab === "restaurants" && !loading && (
+        {/* Restaurants & Favorites Tab */}
+        {(activeTab === "restaurants" || activeTab === "favorites") && !loading && (
           <div style={styles.grid}>
             {filteredRestaurants.length === 0 ? (
               <div style={styles.empty}>
-                <span style={{ fontSize: "48px" }}>🏪</span>
-                <p>{restaurantList.length === 0 ? "No restaurants available yet." : "No restaurants match your search."}</p>
+                <span style={{ fontSize: "48px" }}>{activeTab === "favorites" ? "❤️" : "🏪"}</span>
+                <p>
+                  {activeTab === "favorites" 
+                    ? (favorites.length === 0 ? "You haven't favorited any restaurants yet." : "No favorites match your search.")
+                    : (restaurantList.length === 0 ? "No restaurants available yet." : "No restaurants match your search.")
+                  }
+                </p>
               </div>
             ) : (
               filteredRestaurants.map((r) => (
@@ -489,7 +525,32 @@ export default function Dashboard() {
                         {r.status === "active" ? "Open" : "Closed"}
                       </span>
                     </div>
-                    <button style={styles.viewBtn}>View Menu →</button>
+                    <div style={styles.cardActions}>
+                      <button style={styles.viewBtn}>View Menu →</button>
+                      <button
+                        onClick={(e) => handleToggleFavorite(e, r.id)}
+                        style={{
+                          ...styles.favoriteBtn,
+                          color: favorites.includes(r.id) ? "#FF6B35" : "#ccc",
+                          borderColor: favorites.includes(r.id) ? "#FF6B35" : "#ececec",
+                          background: favorites.includes(r.id) ? "#fff4f0" : "#fff",
+                        }}
+                        title={favorites.includes(r.id) ? "Remove from favorites" : "Add to favorites"}
+                      >
+                        <svg 
+                          width="20" 
+                          height="20" 
+                          viewBox="0 0 24 24" 
+                          fill={favorites.includes(r.id) ? "#FF6B35" : "none"} 
+                          stroke={favorites.includes(r.id) ? "#FF6B35" : "#ccc"} 
+                          strokeWidth="2" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -512,6 +573,11 @@ export default function Dashboard() {
                     <span style={{ fontSize: "36px" }}>🍴</span>
                   </div>
                   <div style={styles.menuBody}>
+                    {item.restaurantName && (
+                      <div style={styles.menuRestaurantName}>
+                        🏪 {item.restaurantName}
+                      </div>
+                    )}
                     <div style={styles.menuTop}>
                       <h3 style={styles.menuName}>{item.name}</h3>
                       <span style={{
@@ -1051,6 +1117,26 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
+  cardActions: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+  favoriteBtn: {
+    background: "#fff",
+    border: "1px solid #ececec",
+    borderRadius: "8px",
+    width: "40px",
+    height: "36px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: "20px",
+    transition: "all 0.2s ease",
+    padding: 0,
+    outline: "none",
+  },
   cardBody: {
     padding: "14px",
   },
@@ -1090,7 +1176,8 @@ const styles = {
     fontSize: "13px",
     fontWeight: "600",
     cursor: "pointer",
-    width: "100%",
+    flex: 1,
+    height: "36px",
   },
   menuCard: {
     background: "white",
@@ -1113,6 +1200,16 @@ const styles = {
     flexDirection: "column",
     gap: "6px",
     flex: 1,
+  },
+  menuRestaurantName: {
+    fontSize: "11px",
+    fontWeight: "600",
+    color: "#FF6B35",
+    background: "#fff4f0",
+    padding: "2px 8px",
+    borderRadius: "4px",
+    alignSelf: "flex-start",
+    marginBottom: "2px",
   },
   menuTop: {
     display: "flex",
