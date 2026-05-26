@@ -58,7 +58,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
                     newUser.setEmail(email);
                     newUser.setFirstname(fName);
                     newUser.setLastname(lName);
-                    newUser.setPassword(null);
+                    // Set a placeholder for OAuth2 users to satisfy DB constraints
+                    newUser.setPassword("OAUTH2_USER_" + java.util.UUID.randomUUID().toString());
                     newUser.setRole("CUSTOMER");
                     return userRepository.save(newUser);
                 });

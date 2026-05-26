@@ -262,14 +262,7 @@ public class RestaurantManagerController {
     }
 
     private MenuItemResponse toMenuItemResponse(MenuItem item) {
-        return new MenuItemResponse(
-                item.getId(),
-                item.getName(),
-                item.getDescription(),
-                item.getPrice(),
-                item.getCategory(),
-                item.getAvailability()
-        );
+        return MenuItemResponse.fromEntity(item);
     }
 
     private OrderResponse toOrderResponse(Order order) {

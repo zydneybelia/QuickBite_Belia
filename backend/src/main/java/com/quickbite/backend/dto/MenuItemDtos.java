@@ -18,7 +18,9 @@ public class MenuItemDtos {
             String description,
             Double price,
             String category,
-            Boolean availability
+            Boolean availability,
+            String restaurantId,
+            String restaurantName
     ) {
         public static MenuItemResponse fromEntity(MenuItem item) {
             return new MenuItemResponse(
@@ -27,7 +29,9 @@ public class MenuItemDtos {
                     item.getDescription(),
                     item.getPrice(),
                     item.getCategory(),
-                    item.getAvailability()
+                    item.getAvailability(),
+                    item.getRestaurant() != null ? item.getRestaurant().getId() : null,
+                    item.getRestaurant() != null ? item.getRestaurant().getName() : null
             );
         }
     }
