@@ -33,6 +33,12 @@ export default function Dashboard() {
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState({ firstname: "", lastname: "", email: "", contactNumber: "" });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [favorites, setFavorites] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -42,9 +48,12 @@ export default function Dashboard() {
   const [showOrderPlaced, setShowOrderPlaced] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
   const [paymentReference, setPaymentReference] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [addToCartModalOpen, setAddToCartModalOpen] = useState(false);
   const [itemToAdd, setItemToAdd] = useState(null);
   const [addQty, setAddQty] = useState(1);
+  const [cartNotification, setCartNotification] = useState({ show: false, message: "" });
+  const [orderNowItem, setOrderNowItem] = useState(null);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -58,12 +67,106 @@ export default function Dashboard() {
     return user.userId || user.id || user.sub || null;
   };
 
+  const getUserIdFromToken = () => {
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload?.userId || payload?.sub || payload?.id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    const userId = getCurrentUserId() || getUserIdFromToken();
+    if (!userId) return;
+    setProfileLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/users/${userId}`, authHeaders);
+      const userProfile = res.data;
+      setProfile(userProfile);
+      setProfileForm({
+        firstname: userProfile.firstname || "",
+        lastname: userProfile.lastname || "",
+        email: userProfile.email || "",
+        contactNumber: userProfile.contactNumber || "",
+      });
+      setUser((prev) => ({
+        ...prev,
+        sub: userProfile.firstname ? `${userProfile.firstname} ${userProfile.lastname || ""}` : (userProfile.email || prev?.sub),
+      }));
+    } catch (err) {
+      console.error("Failed to load profile", err);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleOpenProfile = async () => {
+    setShowProfileModal(true);
+    setIsEditingProfile(false);
+    await fetchUserProfile();
+  };
+
+  const handleStartEditProfile = () => setIsEditingProfile(true);
+
+  const handleCancelEditProfile = () => {
+    if (profile) {
+      setProfileForm({
+        firstname: profile.firstname || "",
+        lastname: profile.lastname || "",
+        email: profile.email || "",
+        contactNumber: profile.contactNumber || "",
+      });
+    }
+    setIsEditingProfile(false);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profile) return;
+    setProfileSaving(true);
+    try {
+      const updated = {
+        firstname: profileForm.firstname.trim(),
+        lastname: profileForm.lastname.trim(),
+        email: profileForm.email.trim(),
+        contactNumber: profileForm.contactNumber.trim(),
+      };
+      const res = await axios.put(`${API_URL}/users/${profile.id}`, updated, authHeaders);
+      setProfile(res.data);
+      setUser((prevUser) => ({
+        ...prevUser,
+        sub: res.data.firstname ? `${res.data.firstname} ${res.data.lastname || ""}` : (res.data.email || prevUser?.sub),
+      }));
+      const display = res.data.firstname ? `${res.data.firstname} ${res.data.lastname || ""}`.trim() : (res.data.email || null);
+      if (display) localStorage.setItem("displayName", display);
+      setIsEditingProfile(false);
+      alert("Profile updated successfully.");
+      setShowProfileModal(false);
+    } catch (err) {
+      console.error("Failed to save profile", err);
+      alert(err.response?.data?.message || "Unable to save profile. Please try again.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleCloseProfile = () => {
+    setShowProfileModal(false);
+    setIsEditingProfile(false);
+  };
+
+  const displayName = (typeof window !== 'undefined' && localStorage.getItem('displayName')) || user?.sub || "User";
+
   const fetchOrders = async (userId) => {
     try {
       const endpoint = userId ? `${API_URL}/orders/user/${userId}` : `${API_URL}/orders/me`;
       const res = await axios.get(endpoint, authHeaders);
       console.log('fetchOrders response:', res.data);
-      setOrders(Array.isArray(res.data) ? res.data : []);
+      const sortedOrders = Array.isArray(res.data) 
+        ? res.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) 
+        : [];
+      setOrders(sortedOrders);
     } catch (err) {
       console.error("Failed to fetch orders", err);
       setOrders([]);
@@ -240,18 +343,34 @@ export default function Dashboard() {
 
   const handleAddToCart = (item) => {
     setItemToAdd(item);
-    setAddQty(1);
+    const existing = cart.find((c) => c.id === item.id);
+    setAddQty(existing ? existing.quantity : 1);
     setAddToCartModalOpen(true);
   };
 
   const handleConfirmAddToCart = () => {
     if (!itemToAdd) return;
-    const existing = cart.find((c) => c.id === itemToAdd.id);
-    if (existing) {
-      setCart(cart.map((c) => c.id === itemToAdd.id ? { ...c, quantity: c.quantity + addQty } : c));
-    } else {
-      setCart([...cart, { ...itemToAdd, quantity: addQty }]);
-    }
+    
+    setCart(prevCart => {
+      const existingIndex = prevCart.findIndex((c) => c.id === itemToAdd.id);
+      if (existingIndex !== -1) {
+        // Update existing item's quantity (set it to what was in the modal)
+        const updatedCart = [...prevCart];
+        updatedCart[existingIndex] = { 
+          ...updatedCart[existingIndex], 
+          quantity: addQty 
+        };
+        return updatedCart;
+      } else {
+        // Add new item with selected quantity
+        return [...prevCart, { ...itemToAdd, quantity: addQty }];
+      }
+    });
+
+    // Show notification
+    setCartNotification({ show: true, message: `${itemToAdd.name} added to cart!` });
+    setTimeout(() => setCartNotification({ show: false, message: "" }), 3000);
+
     setAddToCartModalOpen(false);
     setItemToAdd(null);
     setAddQty(1);
@@ -264,23 +383,31 @@ export default function Dashboard() {
   };
 
   const handleOrderNow = (item) => {
-    // Add item to cart if not already there
-    const existing = cart.find((c) => c.id === item.id);
-    if (!existing) {
-      setCart([...cart, { ...item, quantity: 1 }]);
-    } else {
-      setCart(cart.map((c) => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
-    }
+    // Instead of adding to cart, we set it as a separate "Order Now" item
+    setOrderNowItem({ ...item, quantity: 1 });
+    
     // Open checkout modal immediately
-    setTimeout(() => setCheckoutOpen(true), 100);
+    setCheckoutStep(1);
+    setCheckoutOpen(true);
   };
 
   const handleRemoveFromCart = (itemId) => {
-    setCart(cart.filter((c) => c.id !== itemId));
+    setCart(prevCart => prevCart.filter((c) => c.id !== itemId));
   };
 
   const handleQuantityChange = (itemId, delta) => {
-    setCart(cart.map((c) => {
+    // If we are in "Order Now" mode, update the orderNowItem quantity
+    if (orderNowItem && orderNowItem.id === itemId) {
+      const newQty = orderNowItem.quantity + delta;
+      if (newQty <= 0) {
+        closeCheckoutModal();
+      } else {
+        setOrderNowItem({ ...orderNowItem, quantity: newQty });
+      }
+      return;
+    }
+
+    setCart(prevCart => prevCart.map((c) => {
       if (c.id === itemId) {
         const newQty = c.quantity + delta;
         return newQty <= 0 ? null : { ...c, quantity: newQty };
@@ -300,13 +427,24 @@ export default function Dashboard() {
     setCheckoutStep(1);
     setPaymentMethod("cash_on_delivery");
     setPaymentReference("");
+    setDeliveryAddress("");
+    setOrderNowItem(null);
   };
 
-  const checkoutItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const checkoutSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const checkoutItemCount = orderNowItem 
+    ? orderNowItem.quantity 
+    : cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const checkoutSubtotal = orderNowItem 
+    ? orderNowItem.price * orderNowItem.quantity 
+    : cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
   const deliveryFee = checkoutItemCount > 0 ? 50 : 0;
   const checkoutTotal = checkoutSubtotal + deliveryFee;
-  const visibleCheckoutItems = cart.filter((item) => item.quantity > 0);
+
+  const visibleCheckoutItems = orderNowItem 
+    ? [orderNowItem] 
+    : cart.filter((item) => item.quantity > 0);
   const restaurantName = selectedRestaurant?.name || "Selected Restaurant";
   const restaurantLocation = selectedRestaurant?.location || "Your location";
   const estimatedDelivery = selectedRestaurant?.estimatedDelivery || "25–35 min";
@@ -325,6 +463,11 @@ export default function Dashboard() {
         return;
       }
 
+      if (!deliveryAddress.trim()) {
+        alert("Please enter a delivery address.");
+        return;
+      }
+
       // Validate payment reference for GCash/Maya
       if ((paymentMethod === "gcash" || paymentMethod === "maya") && paymentReference.length !== 11) {
         alert(`Please enter a valid 11-digit number for ${paymentMethod === "gcash" ? "GCash" : "Maya"}`);
@@ -333,6 +476,7 @@ export default function Dashboard() {
 
       const orderData = {
         userId,
+        deliveryAddress: deliveryAddress.trim(),
         items: visibleCheckoutItems.map((item) => ({
           menuItemId: item.id,
           quantity: item.quantity,
@@ -346,19 +490,42 @@ export default function Dashboard() {
 
       await axios.post(`${API_URL}/orders`, orderData, authHeaders);
 
+      // If it was "Order Now", remove only that item from the cart if it existed
+      if (orderNowItem) {
+        setCart(prevCart => prevCart.filter(c => c.id !== orderNowItem.id));
+      } else {
+        // If it was a regular cart checkout, clear the entire cart
+        setCart([]);
+        localStorage.removeItem(getCartKey());
+      }
+
       // Close checkout modal immediately
       closeCheckoutModal();
       
-      setCart([]);
-      localStorage.removeItem(getCartKey());
-      // Refresh orders for the user and navigate to Orders tab so user sees the new order
+      // Refresh orders for the user and navigate to Activity tab so user sees the new order
       await fetchOrders(userId);
-      setActiveTab("orders");
+      setActiveTab("activity");
       setOrderPlacedMsg("Your order has been placed.");
       setShowOrderPlaced(true);
       setTimeout(() => setShowOrderPlaced(false), 5000);
     } catch (err) {
       console.error("Checkout failed", err);
+      const data = err.response?.data;
+      let errorMsg = "Failed to place order. Please try again.";
+      
+      if (data) {
+        if (typeof data === 'string') {
+          errorMsg = data;
+        } else if (data.message) {
+          errorMsg = data.message;
+        } else {
+          errorMsg = JSON.stringify(data);
+        }
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      alert(errorMsg);
     }
   };
 
@@ -384,16 +551,20 @@ export default function Dashboard() {
   });
 
   const handleLogout = () => {
-    // Do not remove per-user cart on logout so carts persist per user across sessions
-    localStorage.removeItem("token");
-    navigate("/login");
+    if (window.confirm("Are you sure you want to log out?")) {
+      // Do not remove per-user cart on logout so carts persist per user across sessions
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
   };
 
   const statusColor = (status) => {
     switch (status?.toUpperCase()) {
       case "PLACED": return { bg: "#fff7ed", color: "#ea580c" };
       case "PREPARING": return { bg: "#fef9c3", color: "#ca8a04" };
+      case "OUT_FOR_DELIVERY": return { bg: "#eff6ff", color: "#2563eb" };
       case "DELIVERED": return { bg: "#f0fdf4", color: "#16a34a" };
+      case "CANCELLED": return { bg: "#fef2f2", color: "#dc2626" };
       default: return { bg: "#f3f4f6", color: "#6b7280" };
     }
   };
@@ -441,12 +612,12 @@ export default function Dashboard() {
         </nav>
 
         <div style={styles.sidebarFooter}>
-          <div style={styles.userInfo}>
+          <div style={{ ...styles.userInfo, cursor: 'pointer' }} onClick={handleOpenProfile}>
             <div style={styles.avatar}>
-              {user?.sub?.charAt(0)?.toUpperCase() || "U"}
+              {(displayName?.charAt(0) || "U").toUpperCase()}
             </div>
             <div>
-              <p style={styles.userName}>{user?.sub || "User"}</p>
+              <p style={styles.userName}>{displayName}</p>
               <p style={styles.userRole}>Customer</p>
             </div>
           </div>
@@ -480,6 +651,9 @@ export default function Dashboard() {
           </div>
           {showOrderPlaced && (
             <div style={styles.successBanner}>{orderPlacedMsg}</div>
+          )}
+          {cartNotification.show && (
+            <div style={styles.cartNotification}>{cartNotification.message}</div>
           )}
           {activeTab === "menu" && (
             <button onClick={() => setActiveTab("restaurants")} style={styles.backBtn}>
@@ -631,6 +805,18 @@ export default function Dashboard() {
                         ))}
                       </div>
 
+                      {order.deliveryAddress && (
+                        <div style={styles.activityAddress}>
+                          📍 {order.deliveryAddress}
+                        </div>
+                      )}
+
+                      <div style={styles.activityPayment}>
+                        {order.paymentMethod === "cash_on_delivery" ? "💵 Cash on Delivery" : 
+                         order.paymentMethod === "gcash" ? "📱 GCash" : 
+                         order.paymentMethod === "maya" ? "💳 Maya" : "💰 " + order.paymentMethod}
+                      </div>
+
                       <div style={styles.activityCardFooter}>
                         <span style={styles.priceText}>₱{order.totalAmount?.toFixed(2)}</span>
                         <button onClick={() => setActiveTab("orders")} style={styles.detailsBtn}>View Details</button>
@@ -644,17 +830,24 @@ export default function Dashboard() {
             {/* Past Orders Section */}
             <section style={styles.activitySection}>
               <h2 style={styles.sectionTitle}>Past Orders</h2>
-              {orders.filter(o => o.status?.toUpperCase() === "DELIVERED").length === 0 ? (
-                <p style={styles.emptyText}>No past orders yet.</p>
+              {orders.length === 0 ? (
+                <p style={styles.emptyText}>No orders yet.</p>
               ) : (
                 <div style={styles.pastOrdersList}>
-                  {orders.filter(o => o.status?.toUpperCase() === "DELIVERED").slice(0, 5).map(order => (
+                  {orders.slice(0, 10).map(order => (
                     <div key={order.id} style={styles.pastOrderRow}>
                       <div style={styles.pastOrderInfo}>
                         <span style={styles.pastOrderDate}>
                           {new Date(order.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
                         </span>
                         <span style={styles.pastOrderId}>#{order.id?.slice(0, 8).toUpperCase()}</span>
+                        <span style={{
+                          ...styles.statusPill,
+                          background: statusColor(order.status).bg,
+                          color: statusColor(order.status).color,
+                          fontSize: '10px',
+                          padding: '2px 6px'
+                        }}>{order.status}</span>
                         <span style={styles.pastOrderAmount}>₱{order.totalAmount?.toFixed(2)}</span>
                       </div>
                       <button 
@@ -825,6 +1018,108 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Profile Modal (Customer) */}
+        {showProfileModal && (
+          <div style={styles.modalOverlay}>
+            <div style={{ ...styles.modalContent, maxWidth: "520px" }}>
+              <div style={styles.modalBody}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+                  <h3 style={styles.modalTitle}>Your Profile</h3>
+                  <button onClick={handleCloseProfile} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
+                </div>
+
+                {profileLoading ? (
+                  <div style={styles.loadingRow}>
+                    <div style={styles.spinner} />
+                    <span style={{ color: "#aaa", fontSize: "14px" }}>Loading profile...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: "16px" }}>
+                      <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Name</p>
+                      <p style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>
+                        {profile?.firstname || ""} {profile?.lastname || ""}
+                      </p>
+                    </div>
+
+                    <div style={{ display: isEditingProfile ? "none" : "block", gap: "12px" }}>
+                      <div style={{ marginBottom: "14px" }}>
+                        <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Email</p>
+                        <p style={{ margin: 0, fontSize: "14px", color: "#334155" }}>{profile?.email || "—"}</p>
+                      </div>
+                      <div style={{ marginBottom: "14px" }}>
+                        <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Contact Number</p>
+                        <p style={{ margin: 0, fontSize: "14px", color: "#334155" }}>{profile?.contactNumber || "—"}</p>
+                      </div>
+                    </div>
+
+                    {isEditingProfile && (
+                      <>
+                        <div style={styles.modalRow}>
+                          <div style={styles.modalField}>
+                            <label style={styles.modalLabel}>First Name</label>
+                            <input
+                              type="text"
+                              value={profileForm.firstname}
+                              onChange={(e) => setProfileForm({ ...profileForm, firstname: e.target.value })}
+                              style={styles.modalInput}
+                              placeholder="First name"
+                            />
+                          </div>
+                          <div style={styles.modalField}>
+                            <label style={styles.modalLabel}>Last Name</label>
+                            <input
+                              type="text"
+                              value={profileForm.lastname}
+                              onChange={(e) => setProfileForm({ ...profileForm, lastname: e.target.value })}
+                              style={styles.modalInput}
+                              placeholder="Last name"
+                            />
+                          </div>
+                        </div>
+                        <div style={styles.modalField}>
+                          <label style={styles.modalLabel}>Email</label>
+                          <input
+                            type="email"
+                            value={profileForm.email}
+                            onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                            style={styles.modalInput}
+                            placeholder="name@example.com"
+                          />
+                        </div>
+                        <div style={styles.modalField}>
+                          <label style={styles.modalLabel}>Contact Number</label>
+                          <input
+                            type="text"
+                            value={profileForm.contactNumber}
+                            onChange={(e) => setProfileForm({ ...profileForm, contactNumber: e.target.value })}
+                            style={styles.modalInput}
+                            placeholder="09XXXXXXXXX"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div style={{ ...styles.modalActions, marginTop: "20px", justifyContent: "flex-end" }}>
+                      {isEditingProfile ? (
+                        <>
+                          <button onClick={handleCancelEditProfile} style={styles.secondaryBtn}>Cancel</button>
+                          <button onClick={handleSaveProfile} disabled={profileSaving} style={styles.primaryBtn}>
+                            {profileSaving ? "Saving…" : "Save Changes"}
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={handleStartEditProfile} style={styles.primaryBtn}>Edit Profile</button>
+                      )}
+                      <button onClick={handleCloseProfile} style={styles.secondaryBtn}>Close</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {checkoutOpen && (
           <div style={styles.modalOverlay}>
             <div style={styles.modalBox}>
@@ -892,7 +1187,7 @@ export default function Dashboard() {
                   <div style={styles.modalHeader}>
                     <div>
                       <h2 style={styles.modalTitle}>Review your order</h2>
-                      <p style={styles.modalSubtitle}>Check the details before confirming.</p>
+                      <p style={styles.modalSubtitle}>{restaurantName} · {restaurantLocation}</p>
                     </div>
                     <button style={styles.modalCloseBtn} onClick={closeCheckoutModal}>✕</button>
                   </div>
@@ -912,6 +1207,17 @@ export default function Dashboard() {
                               <strong>₱{(item.price * item.quantity).toFixed(2)}</strong>
                             </div>
                           ))}
+                        </div>
+
+                        <div style={styles.addressSection}>
+                          <label style={styles.label}>Delivery Address:</label>
+                          <textarea
+                            placeholder="Enter your complete delivery address (Street, Brgy, City)"
+                            value={deliveryAddress}
+                            onChange={(e) => setDeliveryAddress(e.target.value)}
+                            style={styles.addressInput}
+                            required
+                          />
                         </div>
 
                         <div style={styles.paymentSection}>
@@ -1001,17 +1307,25 @@ export default function Dashboard() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>{["Order ID", "Customer", "Total", "Status", "Date"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
+                <tr>{["Order ID", "Customer", "Address", "Payment", "Total", "Status", "Date"].map((h) => <th key={h} style={styles.th}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {orders.length === 0 ? (
-                  <tr><td colSpan={5} style={styles.emptyCell}>You haven't placed any orders yet.</td></tr>
+                  <tr><td colSpan={7} style={styles.emptyCell}>You haven't placed any orders yet.</td></tr>
                 ) : orders.map((o) => {
                   const sc = statusColor(o.status);
                   return (
                     <tr key={o.id} style={styles.tr}>
                       <td style={styles.td}><span style={{ fontFamily: "monospace", fontWeight: "700" }}>#{o.id?.slice(0, 8).toUpperCase()}</span></td>
                       <td style={styles.td}>{o.user?.email || user?.sub || "You"}</td>
+                      <td style={styles.td}>{o.deliveryAddress || "—"}</td>
+                      <td style={styles.td}>
+                        <span style={styles.paymentPill}>
+                          {o.paymentMethod === "cash_on_delivery" ? "💵 Cash" : 
+                           o.paymentMethod === "gcash" ? "📱 GCash" : 
+                           o.paymentMethod === "maya" ? "💳 Maya" : o.paymentMethod || "—"}
+                        </span>
+                      </td>
                       <td style={styles.td}><strong style={{ color: "#FF6B35" }}>₱{o.totalAmount?.toFixed(2)}</strong></td>
                       <td style={styles.td}><span style={{ ...styles.pill, background: sc.bg, color: sc.color }}>{o.status}</span></td>
                       <td style={styles.td}>{o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</td>
@@ -1537,6 +1851,14 @@ const styles = {
     display: "grid",
     gap: "16px",
   },
+  modalContent: { width: "100%", maxWidth: "520px", background: "white", borderRadius: "20px", overflow: "hidden", boxShadow: "0 40px 120px rgba(15, 23, 42, 0.12)" },
+  modalLabel: { display: "block", marginBottom: "8px", fontSize: "13px", fontWeight: "600", color: "#374151" },
+  modalInput: { width: "100%", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "12px 14px", fontSize: "14px", color: "#111827", marginBottom: "14px" },
+  modalRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "18px" },
+  modalField: { display: "flex", flexDirection: "column" },
+  modalActions: { display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "14px" },
+  primaryBtn: { background: "#FF6B35", color: "white", border: "none", borderRadius: "10px", padding: "10px 16px", cursor: "pointer", fontWeight: "700" },
+  secondaryBtn: { background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", borderRadius: "10px", padding: "10px 16px", cursor: "pointer", fontWeight: "700" },
   modalItem: {
     display: "grid",
     gridTemplateColumns: "auto 1fr auto",
@@ -1910,7 +2232,42 @@ const styles = {
   td: { padding: "12px 16px", fontSize: "13px", color: "#333" },
   emptyCell: { padding: "3rem", textAlign: "center", color: "#aaa", fontSize: "14px" },
   pill: { fontSize: "11px", fontWeight: "600", padding: "3px 10px", borderRadius: "999px" },
+  paymentPill: {
+    fontSize: "11px",
+    fontWeight: "500",
+    color: "#64748b",
+    background: "#f1f5f9",
+    padding: "3px 8px",
+    borderRadius: "6px",
+    display: "inline-block",
+  },
   
+  // Address Styles
+  addressSection: {
+    marginBottom: "20px",
+  },
+  label: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#374151",
+    display: "block",
+    marginBottom: "4px",
+  },
+  addressInput: {
+    width: "100%",
+    minHeight: "80px",
+    padding: "12px",
+    border: "1px solid #ececec",
+    borderRadius: "12px",
+    fontSize: "14px",
+    fontFamily: "inherit",
+    resize: "vertical",
+    marginTop: "4px",
+    outline: "none",
+    transition: "border-color 0.2s",
+    boxSizing: "border-box",
+  },
+
   // Activity Tab Styles
   activityContainer: {
     display: "flex",
@@ -1978,6 +2335,17 @@ const styles = {
     textAlign: "center",
     whiteSpace: "nowrap",
   },
+  activityAddress: {
+    fontSize: "12px",
+    color: "#64748b",
+    marginBottom: "8px",
+  },
+  activityPayment: {
+    fontSize: "12px",
+    color: "#64748b",
+    marginBottom: "12px",
+    fontWeight: "500",
+  },
   activityCardFooter: {
     display: "flex",
     justifyContent: "space-between",
@@ -2026,6 +2394,7 @@ const styles = {
     fontSize: "13px",
     fontWeight: "600",
     color: "#1e293b",
+    minWidth: "80px",
   },
   pastOrderAmount: {
     fontSize: "13px",
@@ -2042,6 +2411,23 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     transition: "transform 0.1s",
+  },
+  cartNotification: {
+    position: "fixed",
+    bottom: "30px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "#111827",
+    color: "white",
+    borderRadius: "12px",
+    padding: "12px 24px",
+    fontSize: "14px",
+    fontWeight: "600",
+    boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
   },
   emptyText: {
     fontSize: "14px",

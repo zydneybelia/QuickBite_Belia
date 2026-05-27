@@ -32,6 +32,8 @@ public class User {
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean active = true;
 
+    private String contactNumber;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -104,6 +106,9 @@ public class User {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public String getContactNumber() { return contactNumber; }
+    public void setContactNumber(String contactNumber) { this.contactNumber = contactNumber; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

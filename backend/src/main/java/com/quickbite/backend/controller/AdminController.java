@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "*")
 public class AdminController {
 
     @Autowired
@@ -202,6 +201,7 @@ public class AdminController {
         manager.setLastname(request.lastname());
         manager.setEmail(request.email());
         manager.setPassword(request.password());
+        manager.setContactNumber(request.contactNumber());
         manager.setRole(RoleConstants.RESTAURANT_MANAGER);
 
         User saved = userService.createUser(manager);
@@ -339,8 +339,10 @@ public class AdminController {
                 user.getFirstname(),
                 user.getLastname(),
                 user.getEmail(),
+                user.getContactNumber(),
                 user.getRole(),
-                user.isActive()
+                user.isActive(),
+                user.getCreatedAt()
         );
     }
 }

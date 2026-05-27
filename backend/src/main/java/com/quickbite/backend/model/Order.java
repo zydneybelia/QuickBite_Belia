@@ -19,6 +19,18 @@ public class Order {
     @Column(nullable = false)
     private Double totalAmount;                 // ✅ renamed from totalPrice (matches ERD)
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    @Column(nullable = false)
+    private String deliveryAddress;
+
+    @Column(nullable = false)
+    private String paymentMethod;
+
+    @Column(nullable = true)
+    private String paymentReference;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -41,9 +53,10 @@ public class Order {
     // Constructors
     public Order() {}
 
-    public Order(String status, Double totalAmount, User user) {
+    public Order(String status, Double totalAmount, String deliveryAddress, User user) {
         this.status = status;
         this.totalAmount = totalAmount;
+        this.deliveryAddress = deliveryAddress;
         this.user = user;
     }
 
@@ -56,6 +69,18 @@ public class Order {
 
     public Double getTotalAmount() { return totalAmount; }
     public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }
+
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+
+    public String getDeliveryAddress() { return deliveryAddress; }
+    public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }
+
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+
+    public String getPaymentReference() { return paymentReference; }
+    public void setPaymentReference(String paymentReference) { this.paymentReference = paymentReference; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

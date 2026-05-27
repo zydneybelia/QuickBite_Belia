@@ -11,7 +11,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/refresh-tokens")
-@CrossOrigin(origins = "*")
 public class RefreshTokenController {
 
     @Autowired

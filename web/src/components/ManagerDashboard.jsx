@@ -4,7 +4,7 @@ import axios from "axios";
 
 const API_URL = "http://localhost:8086/api";
 
-const STATUS_OPTIONS = ["PLACED", "PREPARING", "DELIVERED"];
+const STATUS_OPTIONS = ["PLACED", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED"];
 
 export default function ManagerDashboard() {
   const { restaurantId } = useParams();
@@ -20,8 +20,16 @@ export default function ManagerDashboard() {
   const [menuLoading, setMenuLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [user, setUser] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState({ firstname: "", lastname: "", email: "", contactNumber: "" });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -118,6 +126,18 @@ export default function ManagerDashboard() {
     }
   };
 
+  const handleToggleAvailability = async (menuItemId) => {
+    try {
+      const res = await axios.patch(`${API_URL}/manager/restaurants/${restaurantId}/menu/${menuItemId}/availability`, {}, authHeaders);
+      // Update the local state
+      setMenuItems(prev => prev.map(item => item.id === menuItemId ? res.data : item));
+    } catch (err) {
+      console.error("Failed to toggle availability", err);
+      const errorMsg = err.response?.data?.message || err.message || "Failed to update availability";
+      alert(errorMsg);
+    }
+  };
+
   const handleAddMenuItem = async () => {
     if (!restaurantId || !newMenuItem.name.trim()) {
       alert("Please enter a menu item name");
@@ -181,9 +201,198 @@ export default function ManagerDashboard() {
     }
   };
 
+  const handleOrderDelete = async (orderId) => {
+    if (!window.confirm("Are you sure you want to delete this order record?")) return;
+    setLoading(true);
+    try {
+      await axios.delete(`${API_URL}/manager/restaurants/${restaurantId}/orders/${orderId}`, authHeaders);
+      await fetchOrders();
+      await fetchOrderStats();
+      await fetchSales();
+    } catch (err) {
+      console.error("Failed to delete order", err);
+      alert("Failed to delete order. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewOrder = (order) => {
+    setSelectedOrder(order);
+    setShowOrderDetails(true);
+  };
+
+  const handlePrintReceipt = (order) => {
+    const printWindow = window.open('', '_blank');
+    const itemsHtml = order.items?.map(item => `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>${item.quantity}x ${item.menuItemName}</span>
+        <span>₱${(item.price * item.quantity).toFixed(2)}</span>
+      </div>
+    `).join('') || '';
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Receipt - #${order.id?.slice(0, 8).toUpperCase()}</title>
+          <style>
+            body { font-family: 'Courier New', Courier, monospace; padding: 40px; color: #000; max-width: 400px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 20px; margin-bottom: 20px; }
+            .restaurant { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+            .details { font-size: 14px; margin-bottom: 20px; }
+            .items { border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; margin-top: 10px; }
+            .footer { text-align: center; margin-top: 40px; font-size: 12px; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="restaurant">QUICKBITE</div>
+            <div>Official Receipt</div>
+          </div>
+          <div class="details">
+            <div>Order ID: #${order.id?.toUpperCase()}</div>
+            <div>Date: ${new Date(order.createdAt).toLocaleString()}</div>
+            <div>Customer: ${order.customerName}</div>
+            <div>Restaurant: ${restaurantName}</div>
+            <div>Payment: ${order.paymentMethod?.toUpperCase()}</div>
+          </div>
+          <div class="items">
+            ${itemsHtml}
+          </div>
+          <div class="total-row">
+            <span>TOTAL</span>
+            <span>₱${order.totalAmount?.toFixed(2)}</span>
+          </div>
+          <div class="details" style="margin-top: 20px;">
+            <div>Address: ${order.deliveryAddress}</div>
+          </div>
+          <div class="footer">
+            <p>Thank you for ordering with QuickBite!</p>
+            <p>*** End of Receipt ***</p>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); };
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
+    if (window.confirm("Are you sure you want to log out?")) {
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
+  };
+
+  const getUserIdFromToken = () => {
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload?.userId || payload?.sub || payload?.username || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    const userId = getUserIdFromToken();
+    if (!userId) return;
+    setProfileLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/users/${userId}`, authHeaders);
+      const userProfile = res.data;
+      setProfile(userProfile);
+      setProfileForm({
+        firstname: userProfile.firstname || "",
+        lastname: userProfile.lastname || "",
+        email: userProfile.email || "",
+        contactNumber: userProfile.contactNumber || "",
+      });
+      // update local user display (sidebar) to show name when available
+      setUser((prev) => ({
+        ...prev,
+        sub: userProfile.firstname ? `${userProfile.firstname} ${userProfile.lastname || ""}` : (userProfile.email || prev?.sub),
+      }));
+    } catch (err) {
+      console.error("Failed to load profile", err);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleOpenProfile = async () => {
+    setShowProfileModal(true);
+    setIsEditingProfile(false);
+    await fetchUserProfile();
+  };
+
+  const handleStartEditProfile = () => {
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEditProfile = () => {
+    if (profile) {
+      setProfileForm({
+        firstname: profile.firstname || "",
+        lastname: profile.lastname || "",
+        email: profile.email || "",
+        contactNumber: profile.contactNumber || "",
+      });
+    }
+    setIsEditingProfile(false);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profile) return;
+    setProfileSaving(true);
+    try {
+      const updated = {
+        firstname: profileForm.firstname.trim(),
+        lastname: profileForm.lastname.trim(),
+        email: profileForm.email.trim(),
+        contactNumber: profileForm.contactNumber.trim(),
+      };
+      const res = await axios.put(`${API_URL}/users/${profile.id}`, updated, authHeaders);
+      setProfile(res.data);
+      // reflect updated name/email in sidebar display
+      setUser((prevUser) => ({
+        ...prevUser,
+        sub: res.data.firstname ? `${res.data.firstname} ${res.data.lastname || ""}` : (res.data.email || prevUser?.sub),
+      }));
+      // persist display name to localStorage so other dashboards pick it up
+      const display = res.data.firstname ? `${res.data.firstname} ${res.data.lastname || ""}`.trim() : (res.data.email || null);
+      if (display) localStorage.setItem('displayName', display);
+      setIsEditingProfile(false);
+      alert("Profile updated successfully.");
+    } catch (err) {
+      console.error("Failed to save profile", err);
+      alert(err.response?.data?.message || "Unable to save profile. Please try again.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleCloseProfile = () => {
+    setShowProfileModal(false);
+    setIsEditingProfile(false);
+  };
+
+  const getInitials = () => {
+    // Prefer profile (most up-to-date), fall back to user.sub
+    const source = profile || user;
+    if (!source) return "M";
+    const first = source.firstname || (typeof source.sub === 'string' ? source.sub.split(' ')[0] : '');
+    const last = source.lastname || (typeof source.sub === 'string' ? source.sub.split(' ')[1] : '');
+    const a = (first && first.charAt(0)) || (typeof source.sub === 'string' ? source.sub.charAt(0) : 'M');
+    const b = (last && last.charAt(0)) || '';
+    return (a + b).toUpperCase();
   };
 
   const filtered = filterStatus === "ALL"
@@ -196,7 +405,9 @@ export default function ManagerDashboard() {
     switch (status?.toUpperCase()) {
       case "PLACED":    return { bg: "#fff7ed", color: "#ea580c", border: "#fed7aa" };
       case "PREPARING": return { bg: "#fef9c3", color: "#ca8a04", border: "#fde68a" };
+      case "OUT_FOR_DELIVERY": return { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" };
       case "DELIVERED": return { bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0" };
+      case "CANCELLED": return { bg: "#fef2f2", color: "#dc2626", border: "#fecaca" };
       default:          return { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" };
     }
   };
@@ -247,13 +458,14 @@ export default function ManagerDashboard() {
         </nav>
 
         <div style={styles.sidebarFooter}>
-          <div style={styles.userInfo}>
+          <div style={{ ...styles.userInfo, cursor: "pointer" }} onClick={handleOpenProfile}>
             <div style={styles.avatar}>
-              {user?.sub?.charAt(0)?.toUpperCase() || "M"}
+              {getInitials()}
             </div>
             <div>
-              <p style={styles.userName}>{user?.sub || "Manager"}</p>
-              <p style={styles.userRole}>Manager</p>
+              <p style={styles.userName}>{profile?.firstname ? `${profile.firstname} ${profile.lastname || ""}` : (user?.sub || "Manager")}</p>
+              <p style={styles.userRole}>Restaurant Manager</p>
+              <p style={styles.profileLink}>View Profile</p>
             </div>
           </div>
           <button onClick={handleLogout} style={styles.logoutBtn}>
@@ -346,6 +558,106 @@ export default function ManagerDashboard() {
         </div>
       )}
 
+      {showProfileModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, maxWidth: "520px" }}>
+            <div style={styles.modalBody}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+                <h3 style={styles.modalTitle}>Manager Profile</h3>
+                <button onClick={handleCloseProfile} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
+              </div>
+              {profileLoading ? (
+                <div style={styles.loadingRow}>
+                  <div style={styles.spinner} />
+                  <span style={{ color: "#aaa", fontSize: "14px" }}>Loading profile...</span>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: "16px" }}>
+                    <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Name</p>
+                    <p style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>
+                      {profile?.firstname || ""} {profile?.lastname || ""}
+                    </p>
+                  </div>
+
+                  <div style={{ display: isEditingProfile ? "none" : "block", gap: "12px" }}>
+                    <div style={{ marginBottom: "14px" }}>
+                      <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Email</p>
+                      <p style={{ margin: 0, fontSize: "14px", color: "#334155" }}>{profile?.email || "—"}</p>
+                    </div>
+                    <div style={{ marginBottom: "14px" }}>
+                      <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Contact Number</p>
+                      <p style={{ margin: 0, fontSize: "14px", color: "#334155" }}>{profile?.contactNumber || "—"}</p>
+                    </div>
+                  </div>
+
+                  {isEditingProfile && (
+                    <>
+                      <div style={styles.modalRow}>
+                        <div style={styles.modalField}>
+                          <label style={styles.modalLabel}>First Name</label>
+                          <input
+                            type="text"
+                            value={profileForm.firstname}
+                            onChange={(e) => setProfileForm({ ...profileForm, firstname: e.target.value })}
+                            style={styles.modalInput}
+                            placeholder="First name"
+                          />
+                        </div>
+                        <div style={styles.modalField}>
+                          <label style={styles.modalLabel}>Last Name</label>
+                          <input
+                            type="text"
+                            value={profileForm.lastname}
+                            onChange={(e) => setProfileForm({ ...profileForm, lastname: e.target.value })}
+                            style={styles.modalInput}
+                            placeholder="Last name"
+                          />
+                        </div>
+                      </div>
+                      <div style={styles.modalField}>
+                        <label style={styles.modalLabel}>Email</label>
+                        <input
+                          type="email"
+                          value={profileForm.email}
+                          onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                          style={styles.modalInput}
+                          placeholder="name@example.com"
+                        />
+                      </div>
+                      <div style={styles.modalField}>
+                        <label style={styles.modalLabel}>Contact Number</label>
+                        <input
+                          type="text"
+                          value={profileForm.contactNumber}
+                          onChange={(e) => setProfileForm({ ...profileForm, contactNumber: e.target.value })}
+                          style={styles.modalInput}
+                          placeholder="09XXXXXXXXX"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ ...styles.modalActions, marginTop: "20px", justifyContent: "flex-end" }}>
+                    {isEditingProfile ? (
+                      <>
+                        <button onClick={handleCancelEditProfile} style={styles.secondaryBtn}>Cancel</button>
+                        <button onClick={handleSaveProfile} disabled={profileSaving} style={styles.primaryBtn}>
+                          {profileSaving ? "Saving…" : "Save Changes"}
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={handleStartEditProfile} style={styles.primaryBtn}>Edit Profile</button>
+                    )}
+                    <button onClick={handleCloseProfile} style={styles.secondaryBtn}>Close</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "orders" && (
         <>
           <div style={styles.statsGrid}>
@@ -354,6 +666,7 @@ export default function ManagerDashboard() {
               { label: "Total Orders", value: orderStats.totalOrdersCount, color: "#1f2937" },
               { label: "Placed", value: orderStats.placedCount, color: "#ea580c" },
               { label: "Preparing", value: orderStats.preparingCount, color: "#ca8a04" },
+              { label: "Out for Delivery", value: orderStats.outForDeliveryCount, color: "#2563eb" },
               { label: "Delivered", value: orderStats.deliveredCount, color: "#16a34a" },
             ].map((stat) => (
               <div key={stat.label} style={styles.statsCard}>
@@ -407,6 +720,28 @@ export default function ManagerDashboard() {
                         ₱{order.totalAmount?.toFixed(2)}
                       </strong>
                     </p>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                      <button
+                        onClick={() => handleViewOrder(order)}
+                        style={{ ...styles.actionBtn, background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" }}
+                      >
+                        👁️ View
+                      </button>
+                      {order.status?.toUpperCase() === "DELIVERED" && (
+                        <button
+                          onClick={() => handlePrintReceipt(order)}
+                          style={{ ...styles.actionBtn, background: "#fff4f0", color: "#FF6B35", border: "1px solid #ffccbc" }}
+                        >
+                          🖨️ Receipt
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleOrderDelete(order.id)}
+                        style={{ ...styles.actionBtn, background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
                   </div>
 
                   {/* Status updater */}
@@ -463,23 +798,160 @@ export default function ManagerDashboard() {
           ) : (
             <div style={styles.menuList}>
               {menuItems.map((item) => (
-                <div key={item.id} style={styles.menuCard}>
-                  <div>
+                <div key={item.id} style={{
+                  ...styles.menuCard,
+                  opacity: item.availability ? 1 : 0.7,
+                  background: item.availability ? "white" : "#f9fafb",
+                  borderColor: item.availability ? "#ececec" : "#e5e7eb"
+                }}>
+                  <div style={{ opacity: item.availability ? 1 : 0.6 }}>
                     <div style={styles.menuCategory}>{item.category || "Menu Item"}</div>
                     <h3 style={styles.menuName}>{item.name || "Untitled Item"}</h3>
                     <p style={styles.menuDescription}>{item.description || "No description provided."}</p>
                   </div>
                   <div style={styles.menuFooter}>
-                    <span style={styles.menuPrice}>₱{item.price?.toFixed?.(2) ?? item.price ?? "0.00"}</span>
-                    <span style={{ color: item.availability ? "#16a34a" : "#dc2626", fontWeight: 700 }}>
-                      {item.availability ? "Available" : "Unavailable"}
+                    <span style={{ ...styles.menuPrice, opacity: item.availability ? 1 : 0.6 }}>
+                      ₱{item.price?.toFixed?.(2) ?? item.price ?? "0.00"}
                     </span>
+                    <button
+                      onClick={() => handleToggleAvailability(item.id)}
+                      style={{
+                        ...styles.availabilityBtn,
+                        background: item.availability ? "#f0fdf4" : "#fef2f2",
+                        color: item.availability ? "#16a34a" : "#dc2626",
+                        borderColor: item.availability ? "#bbf7d0" : "#fecaca",
+                        fontWeight: "700"
+                      }}
+                    >
+                      {item.availability ? "● Available" : "○ Unavailable"}
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </>
+      )}
+
+      {/* View Order Details Modal */}
+      {showOrderDetails && selectedOrder && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, maxWidth: "500px" }}>
+            <div style={{ ...styles.modalBody, padding: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+                <h3 style={styles.modalTitle}>Order Details</h3>
+                <button onClick={() => setShowOrderDetails(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
+              </div>
+              
+              <div style={{ marginBottom: "20px" }}>
+                <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Customer</p>
+                <p style={{ margin: 0, fontSize: "15px", fontWeight: "600", color: "#111827" }}>👤 {selectedOrder.customerName}</p>
+              </div>
+
+              <div style={{ marginBottom: "20px" }}>
+                <p style={{ margin: "0 0 8px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Items</p>
+                <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px", border: "1px solid #f1f5f9" }}>
+                  {selectedOrder.items?.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "14px" }}>
+                      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                        <span style={{ background: "#FF6B35", color: "white", padding: "2px 7px", borderRadius: "6px", fontSize: "11px", fontWeight: "700" }}>x{item.quantity}</span>
+                        <span style={{ fontWeight: "500", color: "#334155" }}>{item.menuItemName}</span>
+                      </div>
+                      <span style={{ fontWeight: "600", color: "#475569" }}>₱{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: "6px", paddingTop: "10px", borderTop: "1px dashed #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#64748b" }}>Total Payment</span>
+                    <span style={{ fontSize: "18px", fontWeight: "800", color: "#FF6B35" }}>₱{selectedOrder.totalAmount?.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
+                <div>
+                  <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Payment Method</p>
+                  <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#334155" }}>
+                    {selectedOrder.paymentMethod === "cash_on_delivery" ? "💵 Cash" : 
+                     selectedOrder.paymentMethod === "gcash" ? "📱 GCash" : 
+                     selectedOrder.paymentMethod === "maya" ? "💳 Maya" : selectedOrder.paymentMethod}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Order Status</p>
+                  <span style={{ 
+                    ...styles.statusPill, 
+                    background: statusColor(selectedOrder.status).bg, 
+                    color: statusColor(selectedOrder.status).color,
+                    border: `1px solid ${statusColor(selectedOrder.status).border}`
+                  }}>
+                    {selectedOrder.status}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#aaa", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>Delivery Address</p>
+                <p style={{ margin: 0, fontSize: "13px", color: "#475569", lineHeight: "1.5" }}>📍 {selectedOrder.deliveryAddress}</p>
+              </div>
+
+              <div style={{ ...styles.modalActions, marginTop: "24px", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                {selectedOrder.status?.toUpperCase() === "PLACED" && (
+                  <>
+                    <button 
+                      onClick={async () => {
+                        await handleStatusUpdate(selectedOrder.id, "PREPARING");
+                        setShowOrderDetails(false);
+                      }} 
+                      style={{ ...styles.primaryBtn, background: "#16a34a", borderColor: "#16a34a" }}
+                    >
+                      Approve
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        await handleStatusUpdate(selectedOrder.id, "CANCELLED");
+                        setShowOrderDetails(false);
+                      }} 
+                      style={{ ...styles.primaryBtn, background: "#ef4444", borderColor: "#ef4444" }}
+                    >
+                      Cancel Order
+                    </button>
+                  </>
+                )}
+                {selectedOrder.status?.toUpperCase() === "PREPARING" && (
+                  <button 
+                    onClick={async () => {
+                      await handleStatusUpdate(selectedOrder.id, "OUT_FOR_DELIVERY");
+                      setShowOrderDetails(false);
+                    }} 
+                    style={{ ...styles.primaryBtn, background: "#2563eb", borderColor: "#2563eb" }}
+                  >
+                    Mark as Ready
+                  </button>
+                )}
+                {selectedOrder.status?.toUpperCase() === "OUT_FOR_DELIVERY" && (
+                  <button 
+                    onClick={async () => {
+                      await handleStatusUpdate(selectedOrder.id, "DELIVERED");
+                      setShowOrderDetails(false);
+                    }} 
+                    style={{ ...styles.primaryBtn, background: "#16a34a", borderColor: "#16a34a" }}
+                  >
+                    Mark as Delivered
+                  </button>
+                )}
+                {selectedOrder.status?.toUpperCase() === "DELIVERED" && (
+                  <button 
+                    onClick={() => handlePrintReceipt(selectedOrder)} 
+                    style={{ ...styles.primaryBtn, background: "#FF6B35", borderColor: "#FF6B35" }}
+                  >
+                    🖨️ Print Receipt
+                  </button>
+                )}
+                <button onClick={() => setShowOrderDetails(false)} style={styles.primaryBtn}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       </main>
     </div>
@@ -510,6 +982,7 @@ const styles = {
   avatar: { width: "36px", height: "36px", borderRadius: "50%", background: "#fff4f0", color: "#FF6B35", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "14px" },
   userName: { fontSize: "13px", fontWeight: "600", color: "#1a1a1a", margin: 0, maxWidth: "130px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   userRole: { fontSize: "11px", color: "#aaa", margin: 0 },
+  profileLink: { fontSize: "11px", color: "#FF6B35", margin: "4px 0 0", fontWeight: "700" },
   logoutBtn: { background: "none", border: "1px solid #ececec", borderRadius: "8px", padding: "8px", fontSize: "13px", color: "#888", cursor: "pointer" },
   main: { marginLeft: "240px", flex: 1, padding: "2rem" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem" },
@@ -526,6 +999,16 @@ const styles = {
   menuDescription: { fontSize: "13px", color: "#4b5563", lineHeight: "1.6", margin: 0 },
   menuFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "12px" },
   menuPrice: { fontSize: "16px", fontWeight: "700", color: "#111827" },
+  availabilityBtn: {
+    padding: "4px 12px",
+    borderRadius: "20px",
+    fontSize: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+    border: "1px solid",
+    transition: "all 0.2s",
+    outline: "none",
+  },
   loadingRow: { display: "flex", alignItems: "center", gap: "10px", padding: "2rem 0" },
   spinner: { width: "20px", height: "20px", border: "2px solid #f0f0f0", borderTop: "2px solid #FF6B35", borderRadius: "50%" },
   empty: { textAlign: "center", padding: "4rem 2rem", color: "#aaa", fontSize: "15px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" },
@@ -541,6 +1024,17 @@ const styles = {
   updateLabel: { fontSize: "11px", color: "#aaa", margin: 0, fontWeight: "600" },
   statusBtns: { display: "flex", gap: "6px" },
   statusBtn: { padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "500", transition: "all 0.15s" },
+  actionBtn: {
+    padding: "6px 12px",
+    borderRadius: "8px",
+    fontSize: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
   headerActions: { display: "flex", gap: "10px", alignItems: "center" },
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "24px" },
   statsCard: { background: "white", borderRadius: "16px", padding: "18px 20px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)", minHeight: "110px", display: "flex", flexDirection: "column", justifyContent: "space-between" },
