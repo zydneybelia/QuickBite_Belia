@@ -10,16 +10,14 @@ import com.quickbite.backend.dto.AssignedRestaurantResponse;
 import com.quickbite.backend.dto.RestaurantDtos.RestaurantRequest;
 import com.quickbite.backend.dto.RestaurantDtos.RestaurantResponse;
 import com.quickbite.backend.dto.RestaurantDtos.RestaurantSalesResponse;
-import com.quickbite.backend.model.MenuItem;
-import com.quickbite.backend.model.Order;
-import com.quickbite.backend.model.Restaurant;
-import com.quickbite.backend.model.User;
+import com.quickbite.backend.model.*;
 import com.quickbite.backend.repository.MenuItemRepository;
 import com.quickbite.backend.repository.OrderRepository;
 import com.quickbite.backend.repository.RestaurantRepository;
 import com.quickbite.backend.repository.UserRepository;
 import com.quickbite.backend.security.RoleConstants;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -33,7 +31,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/manager")
-@CrossOrigin(origins = "*")
 public class RestaurantManagerController {
 
     @Autowired
@@ -56,15 +53,32 @@ public class RestaurantManagerController {
         if (auth == null || !auth.isAuthenticated()) {
             throw new AccessDeniedException("Authentication required");
         }
-        return auth.getName();
+        
+        Object principal = auth.getPrincipal();
+        if (principal instanceof org.springframework.security.core.userdetails.User) {
+            return ((org.springframework.security.core.userdetails.User) principal).getUsername(); // This is the userId stored in JwtAuthenticationFilter
+        }
+        
+        String identifier = auth.getName();
+        return userRepository.findById(identifier)
+                .or(() -> userRepository.findByEmail(identifier))
+                .map(com.quickbite.backend.model.User::getId)
+                .orElse(identifier);
     }
 
     private void requireManagerRole() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .noneMatch(role -> role.equals(RoleConstants.toAuthority(RoleConstants.RESTAURANT_MANAGER)))) {
-            throw new AccessDeniedException("Only restaurant managers may access this endpoint");
+        if (auth == null) {
+            throw new AccessDeniedException("Authentication required");
+        }
+        
+        // Check for ROLE_RESTAURANT_MANAGER or ROLE_ADMIN
+        boolean hasPermission = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_RESTAURANT_MANAGER") || 
+                               a.getAuthority().equals("ROLE_ADMIN"));
+                
+        if (!hasPermission) {
+            throw new AccessDeniedException("Access denied: requires Manager or Admin role");
         }
     }
 
@@ -77,7 +91,18 @@ public class RestaurantManagerController {
         }
     }
 
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals(RoleConstants.toAuthority(RoleConstants.ADMIN)));
+    }
+
     private Restaurant getManagedRestaurant(String restaurantId) {
+        if (isAdmin()) {
+            return restaurantRepository.findById(restaurantId)
+                    .orElseThrow(() -> new RuntimeException("Restaurant not found"));
+        }
         String managerId = getCurrentUserId();
         return restaurantRepository.findById(restaurantId)
                 .filter(r -> r.getOwner() != null && managerId.equals(r.getOwner().getId()))
@@ -105,7 +130,7 @@ public class RestaurantManagerController {
     public RestaurantResponse createRestaurant(@RequestBody RestaurantRequest request) {
         requireManagerRole();
         String managerId = getCurrentUserId();
-        User manager = userRepository.findById(managerId)
+        com.quickbite.backend.model.User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new RuntimeException("Current manager user not found"));
 
         Restaurant restaurant = new Restaurant();
@@ -167,6 +192,7 @@ public class RestaurantManagerController {
         Long totalOrdersCount = orderRepository.countDistinctOrdersByRestaurantId(id);
         Long placedCount = orderRepository.countDistinctByStatusAndRestaurantId("PLACED", id);
         Long preparingCount = orderRepository.countDistinctByStatusAndRestaurantId("PREPARING", id);
+        Long outForDeliveryCount = orderRepository.countDistinctByStatusAndRestaurantId("OUT_FOR_DELIVERY", id);
         Long deliveredCount = orderRepository.countDistinctByStatusAndRestaurantId("DELIVERED", id);
 
         return new OrderStatsResponse(
@@ -174,6 +200,7 @@ public class RestaurantManagerController {
                 totalOrdersCount != null ? totalOrdersCount : 0L,
                 placedCount != null ? placedCount : 0L,
                 preparingCount != null ? preparingCount : 0L,
+                outForDeliveryCount != null ? outForDeliveryCount : 0L,
                 deliveredCount != null ? deliveredCount : 0L
         );
     }
@@ -193,6 +220,26 @@ public class RestaurantManagerController {
         menuItem.setCategory(request.category());
         menuItem.setAvailability(request.availability() != null ? request.availability() : menuItem.getAvailability());
         return toMenuItemResponse(menuItemRepository.save(menuItem));
+    }
+
+    @PatchMapping("/restaurants/{id}/menu/{menuItemId}/availability")
+    public ResponseEntity<?> toggleAvailability(@PathVariable String id,
+                                               @PathVariable String menuItemId) {
+        try {
+            requireManagerRole();
+            getManagedRestaurant(id);
+            MenuItem menuItem = menuItemRepository.findByIdAndRestaurantId(menuItemId, id)
+                    .orElseThrow(() -> new RuntimeException("Menu item not found for this restaurant"));
+            menuItem.setAvailability(!menuItem.getAvailability());
+            MenuItem savedItem = menuItemRepository.save(menuItem);
+            return ResponseEntity.ok(toMenuItemResponse(savedItem));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new AuthController.ErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new AuthController.ErrorResponse("Failed to update availability: " + e.getMessage()));
+        }
     }
 
     @DeleteMapping("/restaurants/{id}/menu/{menuItemId}")
@@ -238,6 +285,18 @@ public class RestaurantManagerController {
         return new RestaurantSalesResponse(id, totalSales == null ? 0.0 : totalSales, orderCount, menuItemCount);
     }
 
+    @DeleteMapping("/restaurants/{id}/orders/{orderId}")
+    public ResponseEntity<Void> deleteOrder(@PathVariable String id,
+                                           @PathVariable String orderId) {
+        requireManagerRole();
+        getManagedRestaurant(id);
+        Order order = orderRepository.findDistinctByIdAndOrderItemsMenuItemRestaurantId(orderId, id)
+                .orElseThrow(() -> new RuntimeException("Order not found for this restaurant"));
+        order.setDeleted(true);
+        orderRepository.save(order);
+        return ResponseEntity.ok().build();
+    }
+
     private RestaurantResponse toRestaurantResponse(Restaurant restaurant) {
         String managerName = null;
         String managerId = null;
@@ -270,12 +329,33 @@ public class RestaurantManagerController {
                 .map(item -> new OrderItemSummary(item.getMenuItemName(), item.getQuantity(), item.getPrice()))
                 .collect(Collectors.toList());
 
+        String customerName = "—";
+        if (order.getUser() != null) {
+            String fname = order.getUser().getFirstname() != null ? order.getUser().getFirstname() : "";
+            String lname = order.getUser().getLastname() != null ? order.getUser().getLastname() : "";
+            customerName = (fname + " " + lname).trim();
+            if (customerName.isEmpty()) customerName = order.getUser().getEmail();
+        }
+
+        String restaurantName = "—";
+        if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
+            OrderItem firstItem = order.getOrderItems().get(0);
+            if (firstItem.getMenuItem() != null && firstItem.getMenuItem().getRestaurant() != null) {
+                restaurantName = firstItem.getMenuItem().getRestaurant().getName();
+            }
+        }
+
         return new OrderResponse(
                 order.getId(),
                 order.getStatus(),
                 order.getTotalAmount(),
+                order.getDeliveryAddress(),
+                order.getPaymentMethod(),
+                order.getPaymentReference(),
                 order.getCreatedAt() != null ? order.getCreatedAt().toString() : null,
                 order.getUser() != null ? order.getUser().getId() : null,
+                customerName,
+                restaurantName,
                 items
         );
     }

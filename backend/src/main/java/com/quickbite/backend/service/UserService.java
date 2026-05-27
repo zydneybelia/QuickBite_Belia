@@ -101,6 +101,7 @@ public class UserService {
             user.setFirstname(updatedUser.getFirstname());
             user.setLastname(updatedUser.getLastname());
             user.setEmail(updatedUser.getEmail());
+            user.setContactNumber(updatedUser.getContactNumber());
             return userRepository.save(user);
         }).orElseThrow(() -> new RuntimeException("User not found"));
     }

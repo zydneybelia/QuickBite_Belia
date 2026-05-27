@@ -8,7 +8,13 @@ public class OrderDtos {
 
     public record OrderItemRequest(String menuItemId, Integer quantity) {}
 
-    public record CreateOrderRequest(String userId, List<OrderItemRequest> items) {}
+    public record CreateOrderRequest(
+            String userId,
+            String deliveryAddress,
+            String paymentMethod,
+            String paymentReference,
+            List<OrderItemRequest> items
+    ) {}
 
     public record OrderItemSummary(String menuItemName, Integer quantity, Double price) {}
 
@@ -16,8 +22,13 @@ public class OrderDtos {
             String id,
             String status,
             Double totalAmount,
+            String deliveryAddress,
+            String paymentMethod,
+            String paymentReference,
             String createdAt,
             String userId,
+            String customerName,
+            String restaurantName,
             List<OrderItemSummary> items
     ) {}
 
@@ -26,6 +37,7 @@ public class OrderDtos {
             Long totalOrdersCount,
             Long placedCount,
             Long preparingCount,
+            Long outForDeliveryCount,
             Long deliveredCount
     ) {}
 }

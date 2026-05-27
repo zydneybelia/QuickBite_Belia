@@ -8,7 +8,8 @@ public class AdminDtos {
             String firstname,
             String lastname,
             String email,
-            String password
+            String password,
+            String contactNumber
     ) {}
 
     public record ManagerResponse(
@@ -16,8 +17,10 @@ public class AdminDtos {
             String firstname,
             String lastname,
             String email,
+            String contactNumber,
             String role,
-            boolean active
+            boolean active,
+            java.time.LocalDateTime createdAt
     ) {}
 
     public record OnboardRestaurantRequest(

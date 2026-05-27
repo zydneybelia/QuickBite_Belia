@@ -1,2 +1,8 @@
 ALTER TABLE users ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
 ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+
+-- Fix missing columns in orders table
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT false;
